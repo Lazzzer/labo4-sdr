@@ -29,6 +29,7 @@ type CommandType string // Type de commande
 const (
 	Count CommandType = "count" // Commande de comptage des occurrences de lettres
 	Ask   CommandType = "ask"   // Commande de demande du résultat d'un comptage sur un mot
+	Quit  CommandType = "quit"  // Commande de fermeture du client
 
 )
 
