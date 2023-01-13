@@ -105,35 +105,6 @@ func processInput(input string, c *Client) (string, string, error) {
 		return "", "", fmt.Errorf("unknown command")
 	}
 
-	/*if length == 2 {
-		if args[0] == string(types.Count) {
-			command.Type = types.Count
-			command.Text = args[1]
-			value := 1 //TODO: c'est de la merde ça
-			command.Server = &value
-		} else {
-			return "", "", fmt.Errorf("invalid command")
-		}
-	} else if length == 3 {
-		value, err := strconv.Atoi(args[2])
-		if err != nil || value < 1 || value > len(c.Servers) {
-			return "", "", fmt.Errorf("invalid server number")
-		}
-		if args[0] == string(types.Count) {
-			command.Type = types.Count
-			command.Text = args[1]
-			command.Server = &value
-		} else if args[0] == string(types.Ask) {
-			command.Type = types.Ask
-			command.Text = ""
-			command.Server = &value
-		} else {
-			return "", "", fmt.Errorf("invalid command")
-		}
-	} else {
-		return "", "", fmt.Errorf("invalid command")
-	}*/
-
 	if jsonCommand, err := json.Marshal(command); err == nil {
 		return string(jsonCommand), c.Servers[*command.Server], nil
 	} else {
