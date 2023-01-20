@@ -30,7 +30,12 @@ func Log(logType types.LogType, message string) {
 		log.Println(RED + "(ERROR) " + RESET + message)
 	case types.COMMAND:
 		log.Println(YELLOW + "(COMMAND) " + RESET + message)
+	case types.WAVE:
+		log.Println(GREEN + "(WAVE) " + RESET + message)
+	case types.PROBE:
+		log.Println(GREEN + "(PROBE) " + RESET + message)
 	}
+
 }
 
 // Variables pour colorer le texte dans la console

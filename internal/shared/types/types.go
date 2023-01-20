@@ -22,6 +22,8 @@ const (
 	DEBUG   LogType = "DEBUG"   // Log de debug
 	ERROR   LogType = "ERROR"   // Log d'erreur
 	COMMAND LogType = "COMMAND" // Log de commande
+	WAVE    LogType = "WAVE"    // Log de message wave
+	PROBE   LogType = "PROBE"   // Log de message probe
 )
 
 type CommandType string // Type de commande
@@ -40,6 +42,7 @@ type Command struct {
 }
 
 type Message struct {
-	Number   int            `json:"number"`   // Numéro du processus qui envoie le message
 	Topology map[string]int `json:"topology"` // Map de la topologie qui contient le compteur de chaque lettre
+	Number   int            `json:"number"`   // Numéro du processus qui envoie le message
+	Active   bool           `json:"active"`   // Indique si le voisin est actif ou non
 }

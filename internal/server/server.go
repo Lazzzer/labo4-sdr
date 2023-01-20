@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -11,6 +12,9 @@ import (
 	"github.com/Lazzzer/labo4-sdr/internal/shared/types"
 )
 
+var waveMessageChan = make(chan types.Message, 1) // Chan qui gère les messages wave
+
+// TODO : Refactor to have subservers for each algo
 type Server struct {
 	Number          int                  `json:"number"`           // Numéro du processus
 	NbProcesses     int                  `json:"nb_processes"`     // Nombre total de processus
@@ -23,6 +27,7 @@ type Server struct {
 	Topology        map[string]int       `json:"topology"`         // Map de la topologie qui contient le compteur de chaque lettre
 }
 
+// TODO : Refactor to launch for wave and probe commands
 func (s *Server) Init(adjacencyList *map[int][]int) {
 
 	// Initialisation de la map des voisins et des voisins actifs
@@ -98,10 +103,10 @@ func (s *Server) handleCommunications(connection *net.UDPConn) {
 	}
 }
 
-func (s *Server) countLetterOccurences(text string) int {
+func (s *Server) countLetterOccurrences(text string) {
 	shared.Log(types.INFO, "Counting occurrences of letter "+s.Letter+" in "+text)
-	s.Topology[s.Letter] = strings.Count(strings.ToLower(text), s.Letter)
-	return s.Topology[s.Letter]
+	s.Topology[s.Letter] = strings.Count(strings.ToUpper(text), s.Letter)
+	shared.Log(types.INFO, "Letter "+s.Letter+" found "+strconv.Itoa(s.Topology[s.Letter])+" times in "+text)
 }
 
 // handleMessage gère les messages reçus des autres serveurs en UDP.
@@ -112,6 +117,8 @@ func (s *Server) handleMessage(connection *net.UDPConn, addr *net.UDPAddr, messa
 	if err != nil || message.Number == 0 {
 		return fmt.Errorf("invalid message type")
 	}
+
+	waveMessageChan <- *message
 	return nil
 }
 
@@ -135,9 +142,50 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 	return "", nil
 }
 
+// TODO : Refactor to reset topology and neighbors then to fit the second algo later
 // handleWaveCount
-func (s *Server) handleWaveCount(text string) string {
-	return ""
+func (s *Server) handleWaveCount(text string) {
+	s.countLetterOccurrences(text)
+
+	for len(s.Topology) < s.NbProcesses {
+		message := types.Message{
+			Topology: s.Topology,
+			Number:   s.Number,
+			Active:   true,
+		}
+		// TODO: Order matters ?
+		for _, neighbor := range s.Neighbors {
+			s.sendWaveMessage(message, neighbor)
+		}
+		for i := 0; i < len(s.ActiveNeighbors); i++ {
+			message := <-waveMessageChan
+			for letter, count := range message.Topology {
+				s.Topology[letter] = count
+			}
+			if !message.Active {
+				delete(s.ActiveNeighbors, message.Number)
+			}
+		}
+	}
+	message := types.Message{
+		Topology: s.Topology,
+		Number:   s.Number,
+		Active:   false,
+	}
+
+	shared.Log(types.WAVE, "Sending topology to active neighbors...")
+	// Envoi de la topologie aux voisins actifs
+	for _, neighbor := range s.ActiveNeighbors {
+		s.sendWaveMessage(message, neighbor)
+	}
+
+	shared.Log(types.WAVE, "Purging messages from active neighbors...")
+	// Purge des derniers messages reçus
+	for i := 0; i < len(s.ActiveNeighbors); i++ {
+		<-waveMessageChan
+	}
+	// TODO: Format output of topology to be readable in the console
+	shared.Log(types.WAVE, "Text "+text+" has been processed.")
 }
 
 // handleProbeCount
@@ -149,4 +197,27 @@ func (s *Server) handleProbeCount(text string) string {
 func (s *Server) handleAsk(text string) string {
 	// TODO
 	return ""
+}
+
+// TODO: Put logs maybe ?
+func (s *Server) sendWaveMessage(message types.Message, neighbor types.Server) error {
+	messageJson, err := json.Marshal(message)
+	if err != nil {
+		shared.Log(types.ERROR, err.Error())
+		return err
+	}
+
+	destUdpAddr, err := net.ResolveUDPAddr("udp", neighbor.Address)
+	if err != nil {
+		return err
+	}
+	connection, err := net.DialUDP("udp", nil, destUdpAddr)
+	if err != nil {
+		return err
+	}
+	_, err = connection.Write(messageJson)
+	if err != nil {
+		return err
+	}
+	return nil
 }
