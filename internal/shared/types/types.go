@@ -38,3 +38,8 @@ type Command struct {
 	Type CommandType `json:"command_type"`   // Type de la commande
 	Text string      `json:"text,omitempty"` // Texte à analyser
 }
+
+type Message struct {
+	Number   int            `json:"number"`   // Numéro du processus qui envoie le message
+	Topology map[string]int `json:"topology"` // Map de la topologie qui contient le compteur de chaque lettre
+}
