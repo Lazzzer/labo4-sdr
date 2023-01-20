@@ -26,6 +26,9 @@ type Server struct {
 func (s *Server) Init(adjacencyList *map[int][]int) {
 
 	// Initialisation de la map des voisins et des voisins actifs
+	s.Neighbors = make(map[int]types.Server)
+	s.ActiveNeighbors = make(map[int]types.Server)
+
 	for i := 0; i < len((*adjacencyList)[s.Number]); i++ {
 		s.Neighbors[(*adjacencyList)[s.Number][i]] = s.Servers[(*adjacencyList)[s.Number][i]]
 		s.ActiveNeighbors[(*adjacencyList)[s.Number][i]] = s.Servers[(*adjacencyList)[s.Number][i]]
@@ -33,6 +36,9 @@ func (s *Server) Init(adjacencyList *map[int][]int) {
 
 	// Initialisation du nombre de voisins
 	s.NbNeighbors = len(s.Neighbors)
+
+	// Initialisation de la map de la topologie
+	s.Topology = make(map[string]int)
 }
 
 func (s *Server) Run() {
@@ -93,12 +99,8 @@ func (s *Server) handleCommunications(connection *net.UDPConn) {
 }
 
 func (s *Server) countLetterOccurences(text string) int {
-	shared.Log(types.INFO, "counting letter "+s.Letter+" occurrences...")
-	for _, letter := range strings.ToLower(text) {
-		if string(letter) == s.Letter {
-			s.Topology[s.Letter]++
-		}
-	}
+	shared.Log(types.INFO, "Counting occurrences of letter "+s.Letter+" in "+text)
+	s.Topology[s.Letter] = strings.Count(strings.ToLower(text), s.Letter)
 	return s.Topology[s.Letter]
 }
 

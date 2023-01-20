@@ -21,7 +21,7 @@
       "address": "localhost:8084"
     }
   },
-  "adjacencyList": {
+  "adjacency_list": {
     "1": [
       2,
       3,
