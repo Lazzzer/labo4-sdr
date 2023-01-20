@@ -1,26 +1,47 @@
 package main
 
 import (
+	_ "embed"
+	"flag"
 	"log"
-	"os"
 	"strconv"
+
+	"github.com/Lazzzer/labo4-sdr/internal/server"
+	"github.com/Lazzzer/labo4-sdr/internal/shared"
+	"github.com/Lazzzer/labo4-sdr/internal/shared/types"
 )
 
+//go:embed config.json
+var config string
+
 func main() {
-	errorMessage := "Usage: go run main.go <server number>"
-	if len(os.Args) != 2 {
-		log.Fatal(errorMessage)
+	flag.Parse()
+	if flag.Arg(0) == "" {
+		log.Fatal("Invalid argument, usage: <server number>")
 	}
 
-	number, err := strconv.Atoi(os.Args[1])
+	number, err := strconv.Atoi(flag.Arg(0))
 	if err != nil {
-		log.Fatal(errorMessage)
-	} else if number < 0 || number > 5 { // todo ne pas hardcoder le 5
-		log.Fatal("Number must be between 0 and 5")
+		log.Fatal("Invalid argument, usage: <server number>")
 	}
 
-	/*
-		server := server.Server(number)
-		server.Run()
-	*/
+	configuration, err := shared.Parse[types.ServerConfig](config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if number > len(configuration.Servers) || number < 0 {
+		log.Fatal("Invalid server number")
+	}
+
+	server := server.Server{
+		Number:      number,
+		NbProcesses: len(configuration.Servers),
+		Letter:      configuration.Servers[number].Letter,
+		Address:     configuration.Servers[number].Address,
+		Servers:     configuration.Servers,
+	}
+
+	server.Init(&configuration.AdjacencyList)
+	server.Run()
 }
