@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -88,17 +89,32 @@ func processInput(input string, c *Client) (bool, string, []string, error) {
 		} else {
 			return false, "", nil, fmt.Errorf("invalid wave command")
 		}
+		break
+	case string(types.ProbeCount):
+		if length == 3 {
+			value, err := strconv.Atoi(args[2])
+			if err != nil || value < 1 || value > len(c.Servers) {
+				return false, "", nil, fmt.Errorf("invalid server number")
+			}
+			command.Type = types.ProbeCount
+			command.Text = args[1]
+			addresses = append(addresses, c.Servers[value])
+		} else {
+			return false, "", nil, fmt.Errorf("invalid probe command")
+		}
 	case string(types.Ask):
-		// if length != 2 {
-		// 	return "", "", fmt.Errorf("invalid command")
-		// }
-		// value, err := strconv.Atoi(args[1])
-		// if err != nil || value < 1 || value > len(c.Servers) {
-		// 	return "", "", fmt.Errorf("invalid server number")
-		// }
-		// command.Type = types.Ask
-		// command.Text = ""
-		// break
+		if length == 2 {
+			value, err := strconv.Atoi(args[1])
+			if err != nil || value < 1 || value > len(c.Servers) {
+				return false, "", nil, fmt.Errorf("invalid server number")
+			}
+			command.Type = types.Ask
+			command.Text = ""
+			addresses = append(addresses, c.Servers[value])
+			waitResponse = true
+		} else {
+			return false, "", nil, fmt.Errorf("invalid ask command")
+		}
 	default:
 		return false, "", nil, fmt.Errorf("unknown command")
 	}
