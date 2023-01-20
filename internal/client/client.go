@@ -4,13 +4,15 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/Lazzzer/labo4-sdr/internal/shared"
-	"github.com/Lazzzer/labo4-sdr/internal/shared/types"
+	"log"
+	"net"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/Lazzzer/labo4-sdr/internal/shared"
+	"github.com/Lazzzer/labo4-sdr/internal/shared/types"
 )
 
 type Client struct {
@@ -37,31 +39,34 @@ func (c *Client) Run() {
 			shared.Log(types.ERROR, err.Error())
 			continue
 		}
-		command, serverAddress, err := processInput(input, c)
+		waitResponse, command, addresses, err := processInput(input, c)
 		if err != nil {
 			shared.Log(types.ERROR, err.Error())
 			continue
 		}
-		println("Command is : " + command + " and server address is : " + serverAddress)
+
+		for _, servAddr := range addresses {
+			go c.sendCommand(command, servAddr, waitResponse)
+		}
 	}
 }
 
 func displayPrompt() {
 	fmt.Println("\n Available commands:")
-	fmt.Println(" - count <word>")
-	fmt.Println(" - count <word> <serverToAsk>")
+	fmt.Println(" - wave <word>")
+	fmt.Println(" - probe <word> <serverToAsk>")
 	fmt.Println(" - ask <serverToAsk>")
 	fmt.Println(" - quit")
 	fmt.Println("Enter a command to send:")
 }
 
-func processInput(input string, c *Client) (string, string, error) {
+func processInput(input string, c *Client) (bool, string, []string, error) {
 	args := strings.Fields(input)
 	length := len(args)
 
 	// String vide
 	if length == 0 {
-		return "", "", fmt.Errorf("empty input")
+		return false, "", nil, fmt.Errorf("empty input")
 	}
 
 	// Quit
@@ -69,45 +74,78 @@ func processInput(input string, c *Client) (string, string, error) {
 		exitChan <- syscall.SIGINT
 	}
 	var command types.Command
+	var addresses []string
+	waitResponse := false
 
 	switch args[0] {
-	case string(types.Count):
+	case string(types.WaveCount):
 		if length == 2 {
-			command.Type = types.Count
+			command.Type = types.WaveCount
 			command.Text = args[1]
-			value := 1 //TODO: c'est de la merde ça
-			command.Server = &value
-		} else if length == 3 {
-			value, err := strconv.Atoi(args[2])
-			if err != nil || value < 1 || value > len(c.Servers) {
-				return "", "", fmt.Errorf("invalid server number")
+			for _, address := range c.Servers {
+				addresses = append(addresses, address)
 			}
-			command.Type = types.Count
-			command.Text = args[1]
-			command.Server = &value
 		} else {
-			return "", "", fmt.Errorf("invalid command")
+			return false, "", nil, fmt.Errorf("invalid wave command")
 		}
-		break
 	case string(types.Ask):
-		if length != 2 {
-			return "", "", fmt.Errorf("invalid command")
-		}
-		value, err := strconv.Atoi(args[1])
-		if err != nil || value < 1 || value > len(c.Servers) {
-			return "", "", fmt.Errorf("invalid server number")
-		}
-		command.Type = types.Ask
-		command.Text = ""
-		command.Server = &value
-		break
+		// if length != 2 {
+		// 	return "", "", fmt.Errorf("invalid command")
+		// }
+		// value, err := strconv.Atoi(args[1])
+		// if err != nil || value < 1 || value > len(c.Servers) {
+		// 	return "", "", fmt.Errorf("invalid server number")
+		// }
+		// command.Type = types.Ask
+		// command.Text = ""
+		// break
 	default:
-		return "", "", fmt.Errorf("unknown command")
+		return false, "", nil, fmt.Errorf("unknown command")
 	}
 
 	if jsonCommand, err := json.Marshal(command); err == nil {
-		return string(jsonCommand), c.Servers[*command.Server], nil
+		return waitResponse, string(jsonCommand), addresses, nil
 	} else {
-		return "", "", fmt.Errorf("error while marshalling command")
+		return false, "", nil, fmt.Errorf("error while marshalling command")
+	}
+}
+
+// sendCommand envoie une commande au serveur spécifié. Elle s'occupe de la connexion UDP et de la fermeture de celle-ci.
+// Elle a également la possibilité de timeout si le serveur ne répond pas.
+func (c *Client) sendCommand(command string, address string, waitResponse bool) {
+	udpAddr, err := net.ResolveUDPAddr("udp", address)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	connection, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		shared.Log(types.ERROR, err.Error())
+		return
+	}
+	defer func(connection *net.UDPConn) {
+		err := connection.Close()
+		if err != nil {
+			shared.Log(types.ERROR, err.Error())
+		}
+	}(connection)
+
+	_, err = connection.Write([]byte(command + "\n"))
+	if err != nil {
+		shared.Log(types.ERROR, err.Error())
+		return
+	}
+
+	if waitResponse {
+		buffer := make([]byte, 1024)
+		n, servAddr, err := connection.ReadFromUDP(buffer)
+
+		if err != nil {
+			// TODO: Vérifier le comportement
+			fmt.Println(shared.RED + "Server @" + udpAddr.String() + " is unreachable" + shared.RESET)
+			return
+		}
+
+		fmt.Println(shared.GREEN + "Server @" + servAddr.String() + " -> " + string(buffer[0:n]) + shared.RESET)
 	}
 }

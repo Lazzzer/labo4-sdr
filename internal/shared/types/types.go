@@ -27,15 +27,14 @@ const (
 type CommandType string // Type de commande
 
 const (
-	Count CommandType = "count" // Commande de comptage des occurrences de lettres
-	Ask   CommandType = "ask"   // Commande de demande du résultat d'un comptage sur un mot
-	Quit  CommandType = "quit"  // Commande de fermeture du client
-
+	WaveCount  CommandType = "wave"  // Commande de comptage des occurrences de lettres avec un algorithme ondulatoire
+	ProbeCount CommandType = "probe" // Commande de comptage des occurrences de lettres avec un algorithme de sondes et échos
+	Ask        CommandType = "ask"   // Commande de demande du résultat d'un comptage sur un mot
+	Quit       CommandType = "quit"  // Commande de fermeture du client
 )
 
 // Command représente une commande envoyée par un client.
 type Command struct {
-	Type   CommandType `json:"command_type"`    // Type de la commande
-	Text   string      `json:"text,omitempty"`  // Texte à analyser
-	Server *int        `json:"value,omitempty"` // Nb de serveurs à utiliser
+	Type CommandType `json:"command_type"`   // Type de la commande
+	Text string      `json:"text,omitempty"` // Texte à analyser
 }
