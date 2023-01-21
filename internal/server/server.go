@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -149,18 +150,30 @@ func (s *Server) handleWaveCount(text string) {
 	s.countLetterOccurrences(text)
 
 	for len(s.Topology) < s.NbProcesses {
+
+		// Tri des clés des maps pour les envoyer dans l'ordre
+		var keysNeighbors []int
+		var keysActiveNeighbors []int
+		for key := range s.Neighbors {
+			keysNeighbors = append(keysNeighbors, key)
+		}
+		for key := range s.ActiveNeighbors {
+			keysActiveNeighbors = append(keysActiveNeighbors, key)
+		}
+		sort.Ints(keysNeighbors)
+		sort.Ints(keysActiveNeighbors)
+
 		message := types.Message{
 			Topology: s.Topology,
 			Number:   s.Number,
 			Active:   true,
 		}
-		for i, neighbor := range s.Neighbors {
-			s.sendWaveMessage(message, neighbor)
-			shared.Log(types.WAVE, "Sending topology to P"+strconv.Itoa(i)+" at "+neighbor.Address)
+		for _, key := range keysNeighbors {
+			s.sendWaveMessage(message, s.Neighbors[key])
 		}
-		for i := range s.ActiveNeighbors {
-			shared.Log(types.WAVE, "Waiting for P"+strconv.Itoa(i)+" to send its topology...")
-			message := <-waveMessageChans[i]
+		for _, key := range keysActiveNeighbors {
+			shared.Log(types.WAVE, "Waiting for P"+strconv.Itoa(key)+" to send its topology...")
+			message := <-waveMessageChans[key]
 			for letter, count := range message.Topology {
 				s.Topology[letter] = count
 			}
@@ -175,18 +188,24 @@ func (s *Server) handleWaveCount(text string) {
 		Active:   false,
 	}
 
+	var keysActiveNeighbors []int
+	for key := range s.ActiveNeighbors {
+		keysActiveNeighbors = append(keysActiveNeighbors, key)
+	}
+	sort.Ints(keysActiveNeighbors)
+
 	shared.Log(types.WAVE, "Sending final topology to active neighbors...")
 	// Envoi de la topologie aux voisins actifs
-	for i, neighbor := range s.ActiveNeighbors {
-		s.sendWaveMessage(message, neighbor)
-		shared.Log(types.WAVE, "Sent final topology to P"+strconv.Itoa(i))
+	for _, key := range keysActiveNeighbors {
+		s.sendWaveMessage(message, s.ActiveNeighbors[key])
+		shared.Log(types.WAVE, "Sent final topology to P"+strconv.Itoa(key))
 	}
 
 	shared.Log(types.WAVE, "Purging messages from active neighbors...")
 	// Purge des derniers messages reçus
-	for i := range s.ActiveNeighbors {
-		<-waveMessageChans[i]
-		shared.Log(types.WAVE, "Purged message from P"+strconv.Itoa(i))
+	for _, key := range keysActiveNeighbors {
+		<-waveMessageChans[key]
+		shared.Log(types.WAVE, "Purged message from P"+strconv.Itoa(key))
 	}
 	// TODO: Format output of topology to be readable in the console
 	shared.Log(types.WAVE, "Text "+text+" has been processed.")
