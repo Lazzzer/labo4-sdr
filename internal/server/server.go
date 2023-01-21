@@ -25,7 +25,7 @@ type Server struct {
 	Neighbors       map[int]types.Server `json:"neighbors"`        // Map des serveurs voisins
 	ActiveNeighbors map[int]types.Server `json:"active_neighbors"` // Map des serveurs voisins actifs
 	NbNeighbors     int                  `json:"nb_neighbors"`     // Nombre de processus voisins
-	Topology        map[string]int       `json:"topology"`         // Map de la topologie qui contient le compteur de chaque lettre
+	Counts          map[string]int       `json:"counts"`           // Map qui contient le compteur de chaque lettre gérée par les processus
 }
 
 // TODO : Refactor to launch for wave and probe commands
@@ -44,8 +44,8 @@ func (s *Server) Init(adjacencyList *map[int][]int) {
 	// Initialisation du nombre de voisins
 	s.NbNeighbors = len(s.Neighbors)
 
-	// Initialisation de la map de la topologie
-	s.Topology = make(map[string]int)
+	// Initialisation de la map de compteurs
+	s.Counts = make(map[string]int)
 }
 
 func (s *Server) Run() {
@@ -106,9 +106,8 @@ func (s *Server) handleCommunications(connection *net.UDPConn) {
 }
 
 func (s *Server) countLetterOccurrences(text string) {
-	shared.Log(types.INFO, "Counting occurrences of letter "+s.Letter+" in "+text+"...")
-	s.Topology[s.Letter] = strings.Count(strings.ToUpper(text), s.Letter)
-	shared.Log(types.INFO, "Letter "+s.Letter+" found "+strconv.Itoa(s.Topology[s.Letter])+" time(s) in "+text)
+	s.Counts[s.Letter] = strings.Count(strings.ToUpper(text), s.Letter)
+	shared.Log(types.INFO, "Letter "+s.Letter+" found "+strconv.Itoa(s.Counts[s.Letter])+" time(s) in "+text)
 }
 
 // handleMessage gère les messages reçus des autres serveurs en UDP.
@@ -131,7 +130,7 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 		return "", fmt.Errorf("invalid command")
 	}
 
-	shared.Log(types.COMMAND, "GOT => Type: "+string(command.Type)+" Text: "+command.Text)
+	shared.Log(types.COMMAND, "Type: "+string(command.Type)+" Text: "+command.Text)
 
 	switch command.Type {
 	case types.WaveCount:
@@ -149,8 +148,8 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 func (s *Server) handleWaveCount(text string) {
 	s.countLetterOccurrences(text)
 
-	for len(s.Topology) < s.NbProcesses {
-
+	shared.Log(types.WAVE, shared.ORANGE+"Start building topology..."+shared.RESET)
+	for len(s.Counts) < s.NbProcesses {
 		// Tri des clés des maps pour les envoyer dans l'ordre
 		var keysNeighbors []int
 		var keysActiveNeighbors []int
@@ -164,28 +163,33 @@ func (s *Server) handleWaveCount(text string) {
 		sort.Ints(keysActiveNeighbors)
 
 		message := types.Message{
-			Topology: s.Topology,
-			Number:   s.Number,
-			Active:   true,
+			Counts: s.Counts,
+			Number: s.Number,
+			Active: true,
 		}
+
+		shared.Log(types.WAVE, "Sending counts map to all neighbors...")
 		for _, key := range keysNeighbors {
 			s.sendWaveMessage(message, s.Neighbors[key])
 		}
+
+		shared.Log(types.WAVE, "Waiting for messages from all active neighbors...")
 		for _, key := range keysActiveNeighbors {
-			shared.Log(types.WAVE, "Waiting for P"+strconv.Itoa(key)+" to send its topology...")
 			message := <-waveMessageChans[key]
-			for letter, count := range message.Topology {
-				s.Topology[letter] = count
+			for letter, count := range message.Counts {
+				s.Counts[letter] = count
 			}
 			if !message.Active {
 				delete(s.ActiveNeighbors, message.Number)
 			}
 		}
 	}
+	shared.Log(types.WAVE, shared.ORANGE+"Topology built!"+shared.RESET)
+
 	message := types.Message{
-		Topology: s.Topology,
-		Number:   s.Number,
-		Active:   false,
+		Counts: s.Counts,
+		Number: s.Number,
+		Active: false,
 	}
 
 	var keysActiveNeighbors []int
@@ -194,21 +198,20 @@ func (s *Server) handleWaveCount(text string) {
 	}
 	sort.Ints(keysActiveNeighbors)
 
-	shared.Log(types.WAVE, "Sending final topology to active neighbors...")
-	// Envoi de la topologie aux voisins actifs
+	shared.Log(types.WAVE, "Sending final counts map to active neighbors...")
+	// Envoi de la map de compteurs aux voisins actifs
 	for _, key := range keysActiveNeighbors {
 		s.sendWaveMessage(message, s.ActiveNeighbors[key])
-		shared.Log(types.WAVE, "Sent final topology to P"+strconv.Itoa(key))
 	}
 
 	shared.Log(types.WAVE, "Purging messages from active neighbors...")
 	// Purge des derniers messages reçus
 	for _, key := range keysActiveNeighbors {
 		<-waveMessageChans[key]
-		shared.Log(types.WAVE, "Purged message from P"+strconv.Itoa(key))
 	}
 	// TODO: Format output of topology to be readable in the console
-	shared.Log(types.WAVE, "Text "+text+" has been processed.")
+	shared.Log(types.WAVE, "Counts: "+fmt.Sprint(s.Counts))
+	shared.Log(types.INFO, "Text "+text+" has been processed.")
 }
 
 // handleProbeCount

@@ -42,7 +42,7 @@ type Command struct {
 }
 
 type Message struct {
-	Topology map[string]int `json:"topology"` // Map de la topologie qui contient le compteur de chaque lettre
-	Number   int            `json:"number"`   // Numéro du processus qui envoie le message
-	Active   bool           `json:"active"`   // Indique si le voisin est actif ou non
+	Counts map[string]int `json:"counts"` //  Map qui contient le compteur de chaque lettre gérée par les processus
+	Number int            `json:"number"` // Numéro du processus qui envoie le message
+	Active bool           `json:"active"` // Indique si le voisin est actif ou non
 }
