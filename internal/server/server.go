@@ -12,7 +12,7 @@ import (
 	"github.com/Lazzzer/labo4-sdr/internal/shared/types"
 )
 
-var waveMessageChan = make(chan types.Message, 1) // Chan qui gère les messages wave
+var waveMessageChans = make(map[int](chan types.Message)) // Map de channels qui gère les messages wave pour chaque processus
 
 // TODO : Refactor to have subservers for each algo
 type Server struct {
@@ -37,6 +37,7 @@ func (s *Server) Init(adjacencyList *map[int][]int) {
 	for i := 0; i < len((*adjacencyList)[s.Number]); i++ {
 		s.Neighbors[(*adjacencyList)[s.Number][i]] = s.Servers[(*adjacencyList)[s.Number][i]]
 		s.ActiveNeighbors[(*adjacencyList)[s.Number][i]] = s.Servers[(*adjacencyList)[s.Number][i]]
+		waveMessageChans[(*adjacencyList)[s.Number][i]] = make(chan types.Message, 1)
 	}
 
 	// Initialisation du nombre de voisins
@@ -104,9 +105,9 @@ func (s *Server) handleCommunications(connection *net.UDPConn) {
 }
 
 func (s *Server) countLetterOccurrences(text string) {
-	shared.Log(types.INFO, "Counting occurrences of letter "+s.Letter+" in "+text)
+	shared.Log(types.INFO, "Counting occurrences of letter "+s.Letter+" in "+text+"...")
 	s.Topology[s.Letter] = strings.Count(strings.ToUpper(text), s.Letter)
-	shared.Log(types.INFO, "Letter "+s.Letter+" found "+strconv.Itoa(s.Topology[s.Letter])+" times in "+text)
+	shared.Log(types.INFO, "Letter "+s.Letter+" found "+strconv.Itoa(s.Topology[s.Letter])+" time(s) in "+text)
 }
 
 // handleMessage gère les messages reçus des autres serveurs en UDP.
@@ -118,7 +119,7 @@ func (s *Server) handleMessage(connection *net.UDPConn, addr *net.UDPAddr, messa
 		return fmt.Errorf("invalid message type")
 	}
 
-	waveMessageChan <- *message
+	waveMessageChans[message.Number] <- *message
 	return nil
 }
 
@@ -153,12 +154,13 @@ func (s *Server) handleWaveCount(text string) {
 			Number:   s.Number,
 			Active:   true,
 		}
-		// TODO: Order matters ?
-		for _, neighbor := range s.Neighbors {
+		for i, neighbor := range s.Neighbors {
 			s.sendWaveMessage(message, neighbor)
+			shared.Log(types.WAVE, "Sending topology to P"+strconv.Itoa(i)+" at "+neighbor.Address)
 		}
-		for i := 0; i < len(s.ActiveNeighbors); i++ {
-			message := <-waveMessageChan
+		for i := range s.ActiveNeighbors {
+			shared.Log(types.WAVE, "Waiting for P"+strconv.Itoa(i)+" to send its topology...")
+			message := <-waveMessageChans[i]
 			for letter, count := range message.Topology {
 				s.Topology[letter] = count
 			}
@@ -173,16 +175,18 @@ func (s *Server) handleWaveCount(text string) {
 		Active:   false,
 	}
 
-	shared.Log(types.WAVE, "Sending topology to active neighbors...")
+	shared.Log(types.WAVE, "Sending final topology to active neighbors...")
 	// Envoi de la topologie aux voisins actifs
-	for _, neighbor := range s.ActiveNeighbors {
+	for i, neighbor := range s.ActiveNeighbors {
 		s.sendWaveMessage(message, neighbor)
+		shared.Log(types.WAVE, "Sent final topology to P"+strconv.Itoa(i))
 	}
 
 	shared.Log(types.WAVE, "Purging messages from active neighbors...")
 	// Purge des derniers messages reçus
-	for i := 0; i < len(s.ActiveNeighbors); i++ {
-		<-waveMessageChan
+	for i := range s.ActiveNeighbors {
+		<-waveMessageChans[i]
+		shared.Log(types.WAVE, "Purged message from P"+strconv.Itoa(i))
 	}
 	// TODO: Format output of topology to be readable in the console
 	shared.Log(types.WAVE, "Text "+text+" has been processed.")
