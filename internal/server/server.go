@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -25,11 +24,10 @@ type Server struct {
 	Servers         map[int]types.Server `json:"servers"`          // Map des serveurs disponibles
 	Parent          int                  `json:"parent"`           // Numéro du processus parent
 	Neighbors       map[int]types.Server `json:"neighbors"`        // Map des serveurs voisins
-	ActiveNeighbors map[int]types.Server `json:"active_neighbors"` // Map des serveurs voisins actifs
+	ActiveNeighbors map[int]bool         `json:"active_neighbors"` // Map des serveurs voisins actifs
 	NbNeighbors     int                  `json:"nb_neighbors"`     // Nombre de processus voisins
 	Counts          map[string]int       `json:"counts"`           // Map qui contient le compteur de chaque lettre gérée par les processus
 	Text            string               `json:"text"`             // Texte dont il faut compter l'occurrence des lettres
-	TextProcessed   bool                 `json:"text_processed"`   // Booléen qui indique si le texte a été traité
 }
 
 // TODO : Refactor to launch for wave and probe commands
@@ -41,11 +39,11 @@ func (s *Server) Init(adjacencyList *map[int][]int) {
 
 	// Initialisation de la map des voisins et des voisins actifs
 	s.Neighbors = make(map[int]types.Server)
-	s.ActiveNeighbors = make(map[int]types.Server)
+	s.ActiveNeighbors = make(map[int]bool)
 
 	for i := 0; i < len((*adjacencyList)[s.Number]); i++ {
 		s.Neighbors[(*adjacencyList)[s.Number][i]] = s.Servers[(*adjacencyList)[s.Number][i]]
-		s.ActiveNeighbors[(*adjacencyList)[s.Number][i]] = s.Servers[(*adjacencyList)[s.Number][i]]
+		s.ActiveNeighbors[(*adjacencyList)[s.Number][i]] = true
 		waveMessageChans[(*adjacencyList)[s.Number][i]] = make(chan types.Message, 1)
 	}
 
@@ -173,18 +171,8 @@ func (s *Server) handleWaveCount(text string) {
 
 	shared.Log(types.WAVE, shared.ORANGE+"Start building topology..."+shared.RESET)
 
-	// TODO: Still usefull ?
-	// Tri des clés de la map pour les envoyer dans l'ordre
-	var keysNeighbors []int
-	for key := range s.Neighbors {
-		keysNeighbors = append(keysNeighbors, key)
-	}
-	sort.Ints(keysNeighbors)
-
 	iteration := 1
-
 	for len(s.Counts) < s.NbProcesses {
-
 		shared.Log(types.WAVE, shared.PINK+"Iteration "+strconv.Itoa(iteration)+shared.RESET)
 		iteration++
 
@@ -194,17 +182,17 @@ func (s *Server) handleWaveCount(text string) {
 			Active: true,
 		}
 
-		for _, key := range keysNeighbors {
-			err := s.sendWaveMessage(message, s.Neighbors[key])
+		for i, neighbor := range s.Neighbors {
+			err := s.sendWaveMessage(message, neighbor)
 			if err != nil {
 				shared.Log(types.ERROR, err.Error())
 			}
-			shared.Log(types.WAVE, "Sent message to P"+strconv.Itoa(key))
+			shared.Log(types.WAVE, "Sent message to P"+strconv.Itoa(i))
 		}
 
-		for _, key := range keysNeighbors {
-			message := <-waveMessageChans[key]
-			shared.Log(types.WAVE, "Received message from P"+strconv.Itoa(key))
+		for i := range s.Neighbors {
+			message := <-waveMessageChans[i]
+			shared.Log(types.WAVE, "Received message from P"+strconv.Itoa(i))
 			for letter, count := range message.Counts {
 				s.Counts[letter] = count
 			}
@@ -221,28 +209,21 @@ func (s *Server) handleWaveCount(text string) {
 		Active: false,
 	}
 
-	var keysActiveNeighbors []int
-	for key := range s.ActiveNeighbors {
-		keysActiveNeighbors = append(keysActiveNeighbors, key)
-	}
-	sort.Ints(keysActiveNeighbors)
-
-	// TODO: Mettre l'envoi et la purge pour un processus donné à la suite ?
 	shared.Log(types.WAVE, "Sending final counts map to remaining active neighbors...")
 	// Envoi de la map de compteurs aux voisins actifs
-	for _, key := range keysActiveNeighbors {
-		err := s.sendWaveMessage(message, s.ActiveNeighbors[key])
+	for i := range s.ActiveNeighbors {
+		err := s.sendWaveMessage(message, s.Neighbors[i])
 		if err != nil {
 			shared.Log(types.ERROR, err.Error())
 		}
-		shared.Log(types.WAVE, "Sent message to P"+strconv.Itoa(key))
+		shared.Log(types.WAVE, "Sent message to P"+strconv.Itoa(i))
 	}
 
 	shared.Log(types.WAVE, "Purging messages from remaining active neighbors...")
 	// Purge des derniers messages reçus
-	for _, key := range keysActiveNeighbors {
-		<-waveMessageChans[key]
-		shared.Log(types.WAVE, "Purged message from P"+strconv.Itoa(key))
+	for i := range s.ActiveNeighbors {
+		<-waveMessageChans[i]
+		shared.Log(types.WAVE, "Purged message from P"+strconv.Itoa(i))
 	}
 	shared.Log(types.WAVE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
 	shared.Log(types.INFO, "Text "+text+" has been processed.")
@@ -257,6 +238,7 @@ func (s *Server) handleProbeCount(text string) string {
 
 func (s *Server) handleAsk(text string) string {
 	if !<-textProcessedChan {
+		textProcessedChan <- false
 		return "No text processed yet."
 	}
 
