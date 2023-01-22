@@ -17,41 +17,44 @@ var textProcessedChan = make(chan bool, 1)                // Channel qui gère l
 
 // TODO : Refactor to have subservers for each algo
 type Server struct {
+	// Network
+	Address string               `json:"address"` // Adresse du serveur
+	Servers map[int]types.Server `json:"servers"` // Map des serveurs disponibles dans le réseau
+	// Process
 	Number          int                  `json:"number"`           // Numéro du processus
 	NbProcesses     int                  `json:"nb_processes"`     // Nombre total de processus
-	Letter          string               `json:"letter"`           // Lettre à compter
-	Address         string               `json:"address"`          // Adresse du serveur du processus
-	Servers         map[int]types.Server `json:"servers"`          // Map des serveurs disponibles
+	Letter          string               `json:"letter"`           // Lettre gérée par le processus pour le comptage des occurrences
 	Parent          int                  `json:"parent"`           // Numéro du processus parent
-	Neighbors       map[int]types.Server `json:"neighbors"`        // Map des serveurs voisins
-	ActiveNeighbors map[int]bool         `json:"active_neighbors"` // Map des serveurs voisins actifs
-	NbNeighbors     int                  `json:"nb_neighbors"`     // Nombre de processus voisins
-	Counts          map[string]int       `json:"counts"`           // Map qui contient le compteur de chaque lettre gérée par les processus
-	Text            string               `json:"text"`             // Texte dont il faut compter l'occurrence des lettres
+	Neighbors       map[int]types.Server `json:"neighbors"`        // Map prenant en clé le numéro du processus voisin et en valeur ses infos pour la communication
+	ActiveNeighbors map[int]bool         `json:"active_neighbors"` // Map prenant en clé le numéro du processus voisin et en valeur un booléen
+	Counts          map[string]int       `json:"counts"`           // Map prenant en clé la lettre gérée par un processus et en valeur le nombre d'occurrences
+	Text            string               `json:"text"`             // Texte reçu par le serveur
 }
 
-// TODO : Refactor to launch for wave and probe commands
+// Init est la fonction principale d'initialisation du serveur qui se lance au démarrage du programme.
+// Elle utilise une liste d'adjacence valide pour créer un graphe logique des serveurs présents dans le réseau.
 func (s *Server) Init(adjacencyList *map[int][]int) {
-
-	// Initialisation du texte et de la variable isProcessing
-	s.Text = ""
 	textProcessedChan <- false
 
-	// Initialisation de la map des voisins et des voisins actifs
+	// Initialisation de la map des voisins avec la liste d'adjacence
 	s.Neighbors = make(map[int]types.Server)
-	s.ActiveNeighbors = make(map[int]bool)
-
 	for i := 0; i < len((*adjacencyList)[s.Number]); i++ {
 		s.Neighbors[(*adjacencyList)[s.Number][i]] = s.Servers[(*adjacencyList)[s.Number][i]]
-		s.ActiveNeighbors[(*adjacencyList)[s.Number][i]] = true
 		waveMessageChans[(*adjacencyList)[s.Number][i]] = make(chan types.Message, 1)
 	}
 
-	// Initialisation du nombre de voisins
-	s.NbNeighbors = len(s.Neighbors)
-
-	// Initialisation de la map de compteurs
-	s.Counts = make(map[string]int)
+	// Initialisation du processus parent
+	for i := 0; i < len(*adjacencyList); i++ {
+		if i == s.Number {
+			continue
+		}
+		for j := 0; j < len((*adjacencyList)[i]); j++ {
+			if (*adjacencyList)[i][j] == s.Number {
+				s.Parent = i
+				return
+			}
+		}
+	}
 }
 
 func (s *Server) Run() {
@@ -61,6 +64,20 @@ func (s *Server) Run() {
 	shared.Log(types.INFO, shared.GREEN+"Server #"+strconv.Itoa(s.Number)+" as Process P"+strconv.Itoa(s.Number)+" listening on "+s.Address+shared.RESET)
 
 	s.handleCommunications(connection)
+}
+
+// init permet l'initialisation des variables du serveur en fonction du type d'algorithme utilisé et (ré)initialise la
+// map de compteurs, le texte et la map des voisins actifs pour l'algorithme ondulatoire.
+func (s *Server) init(isWave bool) {
+	s.Text = ""
+	s.Counts = make(map[string]int)
+
+	if isWave {
+		s.ActiveNeighbors = make(map[int]bool)
+		for i := range s.Neighbors {
+			s.ActiveNeighbors[i] = true
+		}
+	}
 }
 
 // startListening initialise la connexion UDP du serveur et écoute les connexions entrantes.
@@ -81,15 +98,15 @@ func (s *Server) startListening() *net.UDPConn {
 // handleCommunications gère les communications du serveur.
 // La méthode écoute les messages entre serveurs ainsi que les commandes des clients.
 func (s *Server) handleCommunications(connection *net.UDPConn) {
-	buffer := make([]byte, 1024)
 	for {
+		buffer := make([]byte, 1024)
 		n, addr, err := connection.ReadFromUDP(buffer)
 		if err != nil {
 			shared.Log(types.ERROR, err.Error())
 			continue
 		}
 		communication := string(buffer[0:n])
-		err = s.handleMessage(connection, addr, communication)
+		err = s.handleMessage(communication)
 		if err != nil {
 			go func() {
 				// Traitement d'une commande si le message n'est pas valide
@@ -115,7 +132,7 @@ func (s *Server) countLetterOccurrences(text string) {
 }
 
 // handleMessage gère les messages reçus des autres serveurs en UDP.
-func (s *Server) handleMessage(connection *net.UDPConn, addr *net.UDPAddr, messageStr string) error {
+func (s *Server) handleMessage(messageStr string) error {
 	message, err := shared.Parse[types.Message](messageStr)
 
 	// TODO: Refactor this
@@ -144,27 +161,24 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 
 	shared.Log(types.COMMAND, "Type: "+string(command.Type)+textToLog)
 
+	if command.Type == types.Ask {
+		return s.handleAsk(command.Text), nil
+	}
+
+	<-textProcessedChan
 	switch command.Type {
 	case types.WaveCount:
-		go s.handleWaveCount(command.Text)
+		s.init(true)
+		s.handleWaveCount(command.Text)
 	case types.ProbeCount:
-		go s.handleProbeCount(command.Text)
-	case types.Ask:
-		return s.handleAsk(command.Text), nil
+		s.init(false)
+		s.handleProbeCount(command.Text)
 	}
 	return "", nil
 }
 
-func (s *Server) initWave() {
-
-}
-
-// TODO : Refactor to reset topology and neighbors then to fit the second algo later
 // handleWaveCount
 func (s *Server) handleWaveCount(text string) {
-	<-textProcessedChan
-
-	s.initWave()
 
 	s.Text = text
 	s.countLetterOccurrences(text)
@@ -267,7 +281,6 @@ func (s *Server) displayOccurrences(counts map[string]int) string {
 	return result
 }
 
-// TODO: Put logs maybe ?
 func (s *Server) sendWaveMessage(message types.Message, neighbor types.Server) error {
 	messageJson, err := json.Marshal(message)
 	if err != nil {
