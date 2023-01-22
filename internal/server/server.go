@@ -13,7 +13,9 @@ import (
 )
 
 var waveMessageChans = make(map[int](chan types.WaveMessage)) // Map de channels qui gère les messages wave pour chaque processus
-var textProcessedChan = make(chan bool, 1)                    // Channel qui gère la fin du traitement du texte
+var probeEchoMessageChans = make(map[int](chan types.ProbeEchoMessage))
+var textProcessedChan = make(chan bool, 1) // Channel qui gère la fin du traitement du texte
+var emitter = false                        // Booléen qui indique si le serveur est émetteur ou non
 
 // TODO : Refactor to have subservers for each algo
 type Server struct {
@@ -41,19 +43,7 @@ func (s *Server) Init(adjacencyList *map[int][]int) {
 	for i := 0; i < len((*adjacencyList)[s.Number]); i++ {
 		s.Neighbors[(*adjacencyList)[s.Number][i]] = s.Servers[(*adjacencyList)[s.Number][i]]
 		waveMessageChans[(*adjacencyList)[s.Number][i]] = make(chan types.WaveMessage, 1)
-	}
-
-	// Initialisation du processus parent
-	for i := 0; i < len(*adjacencyList); i++ {
-		if i == s.Number {
-			continue
-		}
-		for j := 0; j < len((*adjacencyList)[i]); j++ {
-			if (*adjacencyList)[i][j] == s.Number {
-				s.Parent = i
-				return
-			}
-		}
+		probeEchoMessageChans[(*adjacencyList)[s.Number][i]] = make(chan types.ProbeEchoMessage, 1)
 	}
 }
 
@@ -106,6 +96,10 @@ func (s *Server) handleCommunications(connection *net.UDPConn) {
 			continue
 		}
 		communication := string(buffer[0:n])
+		err = s.handleProbeEchoMessage(communication)
+		if err == nil {
+			continue
+		}
 		err = s.handleWaveMessage(communication)
 		if err == nil {
 			continue
@@ -136,7 +130,6 @@ func (s *Server) countLetterOccurrences(text string) {
 func (s *Server) handleWaveMessage(messageStr string) error {
 	message, err := shared.Parse[types.WaveMessage](messageStr)
 
-	// TODO: Refactor this
 	if err != nil || message.Number == 0 {
 		return fmt.Errorf("invalid message type")
 	}
@@ -146,6 +139,72 @@ func (s *Server) handleWaveMessage(messageStr string) error {
 	}()
 
 	return nil
+}
+
+func (s *Server) handleProbeEchoMessage(messageStr string) error {
+	message, err := shared.Parse[types.ProbeEchoMessage](messageStr)
+	if err == nil {
+		if message.Type == types.Probe || message.Type == types.Echo {
+			go func() {
+				probeEchoMessageChans[message.Number] <- *message
+			}()
+			go func() {
+				if emitter {
+					return
+				}
+				<-textProcessedChan
+
+				s.init(false)
+				emitter = true
+
+				receivedMessage := <-probeEchoMessageChans[message.Number]
+				shared.Log(types.PROBE, "message received from P"+strconv.Itoa(receivedMessage.Number))
+
+				s.Text = *receivedMessage.Text
+				s.countLetterOccurrences(s.Text)
+				s.Parent = receivedMessage.Number
+
+				message := types.ProbeEchoMessage{
+					Type:   types.Probe,
+					Number: s.Number,
+					Text:   &s.Text,
+				}
+
+				shared.Log(types.PROBE, "Sending probe to neighbors...")
+				for i := range s.Neighbors {
+					if i != s.Parent {
+						s.sendProbeEchoMessage(message, s.Neighbors[i])
+						shared.Log(types.PROBE, "Probe sent to P"+strconv.Itoa(i))
+					}
+				}
+				shared.Log(types.PROBE, "Waiting messages from neighbors...")
+				for i := range s.Neighbors {
+					if i == s.Parent {
+						continue
+					}
+					message := <-probeEchoMessageChans[i]
+					shared.Log(types.PROBE, "Received message from P"+strconv.Itoa(i))
+					if message.Type == types.Echo {
+						shared.Log(types.ECHO, "Received echo from P"+strconv.Itoa(i))
+						for letter, count := range *message.Counts {
+							s.Counts[letter] = count
+						}
+					}
+				}
+
+				message = types.ProbeEchoMessage{
+					Type:   types.Echo,
+					Number: s.Number,
+					Counts: &s.Counts,
+				}
+				s.sendProbeEchoMessage(message, s.Neighbors[s.Parent])
+				shared.Log(types.ECHO, "Echo sent to P"+strconv.Itoa(s.Parent))
+
+			}()
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid message type")
 }
 
 // handleCommand gère les commandes reçues des clients UDP.
@@ -180,7 +239,6 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 
 // handleWaveCount
 func (s *Server) handleWaveCount(text string) {
-
 	s.Text = text
 	s.countLetterOccurrences(text)
 
@@ -246,9 +304,38 @@ func (s *Server) handleWaveCount(text string) {
 }
 
 // handleProbeCount
-func (s *Server) handleProbeCount(text string) string {
-	// TODO
-	return ""
+func (s *Server) handleProbeCount(text string) {
+	emitter = true
+	s.Parent = s.Number
+	s.Text = text
+	s.countLetterOccurrences(text)
+
+	message := types.ProbeEchoMessage{
+		Type:   types.Probe,
+		Number: s.Number,
+		Text:   &text,
+		Counts: nil,
+	}
+
+	shared.Log(types.PROBE, "Sending probe to neighbors...")
+	for i, neighbor := range s.Neighbors {
+		err := s.sendProbeEchoMessage(message, neighbor)
+		if err != nil {
+			shared.Log(types.ERROR, err.Error())
+		}
+		shared.Log(types.PROBE, "Sent probe to P"+strconv.Itoa(i))
+	}
+
+	shared.Log(types.PROBE, "Waiting echoes from neighbors...")
+	for i := range s.Neighbors {
+		message := <-probeEchoMessageChans[i]
+		if message.Type == types.Echo {
+			shared.Log(types.ECHO, "Received echo from P"+strconv.Itoa(message.Number))
+		}
+	}
+
+	shared.Log(types.PROBE, "Text "+text+" has been processed.")
+	textProcessedChan <- true
 }
 
 func (s *Server) handleAsk(text string) string {
@@ -283,6 +370,28 @@ func (s *Server) displayOccurrences(counts map[string]int) string {
 }
 
 func (s *Server) sendWaveMessage(message types.WaveMessage, neighbor types.Server) error {
+	messageJson, err := json.Marshal(message)
+	if err != nil {
+		shared.Log(types.ERROR, err.Error())
+		return err
+	}
+
+	destUdpAddr, err := net.ResolveUDPAddr("udp", neighbor.Address)
+	if err != nil {
+		return err
+	}
+	connection, err := net.DialUDP("udp", nil, destUdpAddr)
+	if err != nil {
+		return err
+	}
+	_, err = connection.Write(messageJson)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) sendProbeEchoMessage(message types.ProbeEchoMessage, neighbor types.Server) error {
 	messageJson, err := json.Marshal(message)
 	if err != nil {
 		shared.Log(types.ERROR, err.Error())

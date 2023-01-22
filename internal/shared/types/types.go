@@ -24,6 +24,7 @@ const (
 	COMMAND LogType = "COMMAND" // Log de commande
 	WAVE    LogType = "WAVE"    // Log de message wave
 	PROBE   LogType = "PROBE"   // Log de message probe
+	ECHO    LogType = "ECHO"    // Log de message echo
 )
 
 type CommandType string // Type de commande
@@ -45,4 +46,18 @@ type WaveMessage struct {
 	Counts map[string]int `json:"counts"` //  Map qui contient le compteur de chaque lettre gérée par les processus
 	Number int            `json:"number"` // Numéro du processus qui envoie le message
 	Active bool           `json:"active"` // Indique si le voisin est actif ou non
+}
+
+type ProbeEchoType string // Type de message probe ou echo
+
+const (
+	Probe ProbeEchoType = "probe" // Message de type probe
+	Echo  ProbeEchoType = "echo"  // Message de type echo
+)
+
+type ProbeEchoMessage struct {
+	Type   ProbeEchoType   `json:"type"`   // Type de message (probe ou echo)
+	Number int             `json:"number"` // Numéro du processus qui envoie le message
+	Text   *string         `json:"text"`   // Texte à analyser
+	Counts *map[string]int `json:"counts"` //  Map qui contient le compteur de chaque lettre gérée par les processus
 }
