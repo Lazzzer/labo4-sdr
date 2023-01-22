@@ -59,6 +59,8 @@ func (s *Server) Run() {
 // init permet l'initialisation des variables du serveur en fonction du type d'algorithme utilisé et (ré)initialise la
 // map de compteurs, le texte et la map des voisins actifs pour l'algorithme ondulatoire.
 func (s *Server) init(isWave bool) {
+	emitter = true
+
 	s.Text = ""
 	s.Counts = make(map[string]int)
 
@@ -148,14 +150,14 @@ func (s *Server) handleProbeEchoMessage(messageStr string) error {
 			go func() {
 				probeEchoMessageChans[message.Number] <- *message
 			}()
-			go func() {
-				if emitter {
-					return
-				}
-				<-textProcessedChan
 
+			if emitter {
+				return nil
+			}
+
+			go func() {
+				<-textProcessedChan
 				s.init(false)
-				emitter = true
 
 				receivedMessage := <-probeEchoMessageChans[message.Number]
 				shared.Log(types.PROBE, "message received from P"+strconv.Itoa(receivedMessage.Number))
@@ -200,6 +202,10 @@ func (s *Server) handleProbeEchoMessage(messageStr string) error {
 				s.sendProbeEchoMessage(message, s.Neighbors[s.Parent])
 				shared.Log(types.ECHO, "Echo sent to P"+strconv.Itoa(s.Parent))
 
+				shared.Log(types.PROBE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
+				shared.Log(types.INFO, "Text "+s.Text+" has been processed.")
+				emitter = false
+				textProcessedChan <- true
 			}()
 			return nil
 		}
@@ -305,7 +311,6 @@ func (s *Server) handleWaveCount(text string) {
 
 // handleProbeCount
 func (s *Server) handleProbeCount(text string) {
-	emitter = true
 	s.Parent = s.Number
 	s.Text = text
 	s.countLetterOccurrences(text)
@@ -331,10 +336,15 @@ func (s *Server) handleProbeCount(text string) {
 		message := <-probeEchoMessageChans[i]
 		if message.Type == types.Echo {
 			shared.Log(types.ECHO, "Received echo from P"+strconv.Itoa(message.Number))
+			for letter, count := range *message.Counts {
+				s.Counts[letter] = count
+			}
 		}
 	}
 
-	shared.Log(types.PROBE, "Text "+text+" has been processed.")
+	shared.Log(types.WAVE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
+	shared.Log(types.INFO, "Text "+text+" has been processed.")
+	emitter = false
 	textProcessedChan <- true
 }
 
