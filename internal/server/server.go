@@ -23,6 +23,7 @@ type Server struct {
 	Letter          string               `json:"letter"`           // Lettre à compter
 	Address         string               `json:"address"`          // Adresse du serveur du processus
 	Servers         map[int]types.Server `json:"servers"`          // Map des serveurs disponibles
+	Parent          int                  `json:"parent"`           // Numéro du processus parent
 	Neighbors       map[int]types.Server `json:"neighbors"`        // Map des serveurs voisins
 	ActiveNeighbors map[int]types.Server `json:"active_neighbors"` // Map des serveurs voisins actifs
 	NbNeighbors     int                  `json:"nb_neighbors"`     // Nombre de processus voisins
@@ -124,7 +125,10 @@ func (s *Server) handleMessage(connection *net.UDPConn, addr *net.UDPAddr, messa
 		return fmt.Errorf("invalid message type")
 	}
 
-	waveMessageChans[message.Number] <- *message
+	go func() {
+		waveMessageChans[message.Number] <- *message
+	}()
+
 	return nil
 }
 
@@ -153,10 +157,17 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 	return "", nil
 }
 
+func (s *Server) initWave() {
+
+}
+
 // TODO : Refactor to reset topology and neighbors then to fit the second algo later
 // handleWaveCount
 func (s *Server) handleWaveCount(text string) {
 	<-textProcessedChan
+
+	s.initWave()
+
 	s.Text = text
 	s.countLetterOccurrences(text)
 
@@ -189,6 +200,9 @@ func (s *Server) handleWaveCount(text string) {
 				shared.Log(types.ERROR, err.Error())
 			}
 			shared.Log(types.WAVE, "Sent message to P"+strconv.Itoa(key))
+		}
+
+		for _, key := range keysNeighbors {
 			message := <-waveMessageChans[key]
 			shared.Log(types.WAVE, "Received message from P"+strconv.Itoa(key))
 			for letter, count := range message.Counts {
