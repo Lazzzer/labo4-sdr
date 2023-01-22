@@ -35,7 +35,7 @@ func Log(logType types.LogType, message string) {
 	case types.PROBE:
 		log.Println(PURPLE + "(PROBE) " + RESET + message)
 	case types.ECHO:
-		log.Println(PINK + "(PROBE) " + RESET + message)
+		log.Println(PINK + "(ECHO) " + RESET + message)
 	}
 
 }
