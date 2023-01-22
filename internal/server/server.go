@@ -14,6 +14,7 @@ import (
 )
 
 var waveMessageChans = make(map[int](chan types.Message)) // Map de channels qui gère les messages wave pour chaque processus
+var textProcessedChan = make(chan bool, 1)                // Channel qui gère la fin du traitement du texte
 
 // TODO : Refactor to have subservers for each algo
 type Server struct {
@@ -26,10 +27,16 @@ type Server struct {
 	ActiveNeighbors map[int]types.Server `json:"active_neighbors"` // Map des serveurs voisins actifs
 	NbNeighbors     int                  `json:"nb_neighbors"`     // Nombre de processus voisins
 	Counts          map[string]int       `json:"counts"`           // Map qui contient le compteur de chaque lettre gérée par les processus
+	Text            string               `json:"text"`             // Texte dont il faut compter l'occurrence des lettres
+	TextProcessed   bool                 `json:"text_processed"`   // Booléen qui indique si le texte a été traité
 }
 
 // TODO : Refactor to launch for wave and probe commands
 func (s *Server) Init(adjacencyList *map[int][]int) {
+
+	// Initialisation du texte et de la variable isProcessing
+	s.Text = ""
+	textProcessedChan <- false
 
 	// Initialisation de la map des voisins et des voisins actifs
 	s.Neighbors = make(map[int]types.Server)
@@ -130,7 +137,12 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 		return "", fmt.Errorf("invalid command")
 	}
 
-	shared.Log(types.COMMAND, "Type: "+string(command.Type)+" Text: "+command.Text)
+	textToLog := ""
+	if command.Type != types.Ask {
+		textToLog = " Text: " + command.Text
+	}
+
+	shared.Log(types.COMMAND, "Type: "+string(command.Type)+textToLog)
 
 	switch command.Type {
 	case types.WaveCount:
@@ -146,6 +158,8 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 // TODO : Refactor to reset topology and neighbors then to fit the second algo later
 // handleWaveCount
 func (s *Server) handleWaveCount(text string) {
+	<-textProcessedChan
+	s.Text = text
 	s.countLetterOccurrences(text)
 
 	shared.Log(types.WAVE, shared.ORANGE+"Start building topology..."+shared.RESET)
@@ -212,6 +226,7 @@ func (s *Server) handleWaveCount(text string) {
 	// TODO: Format output of topology to be readable in the console
 	shared.Log(types.WAVE, "Counts: "+fmt.Sprint(s.Counts))
 	shared.Log(types.INFO, "Text "+text+" has been processed.")
+	textProcessedChan <- true
 }
 
 // handleProbeCount
@@ -221,8 +236,32 @@ func (s *Server) handleProbeCount(text string) string {
 }
 
 func (s *Server) handleAsk(text string) string {
-	// TODO
-	return ""
+	if !<-textProcessedChan {
+		return "No text processed yet."
+	}
+
+	textProcessedChan <- true
+	return s.displayOccurrences(s.Counts)
+}
+
+func (s *Server) displayOccurrences(counts map[string]int) string {
+	var result string
+
+	result += "\nServers in this network can process the following letters: "
+
+	for _, server := range s.Servers {
+		result += server.Letter + " "
+	}
+
+	result += "\n\nOccurrences of letters in " + s.Text + " :\n\n"
+
+	for letter, count := range counts {
+		if count != 0 {
+			result += letter + " : " + strconv.Itoa(count) + "\n"
+		}
+	}
+
+	return result
 }
 
 // TODO: Put logs maybe ?

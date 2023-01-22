@@ -47,7 +47,7 @@ func (c *Client) Run() {
 		}
 
 		for _, servAddr := range addresses {
-			go c.sendCommand(command, servAddr, waitResponse)
+			c.sendCommand(command, servAddr, waitResponse)
 		}
 	}
 }
@@ -162,6 +162,6 @@ func (c *Client) sendCommand(command string, address string, waitResponse bool) 
 			return
 		}
 
-		fmt.Println(shared.GREEN + "Server @" + servAddr.String() + " -> " + string(buffer[0:n]) + shared.RESET)
+		fmt.Println(shared.GREEN + "From Server @" + servAddr.String() + "\n" + shared.RESET + string(buffer[0:n]))
 	}
 }
