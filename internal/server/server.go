@@ -163,19 +163,15 @@ func (s *Server) handleWaveCount(text string) {
 	s.countLetterOccurrences(text)
 
 	shared.Log(types.WAVE, shared.ORANGE+"Start building topology..."+shared.RESET)
-	for len(s.Counts) < s.NbProcesses {
-		// Tri des clés des maps pour les envoyer dans l'ordre
-		var keysNeighbors []int
-		var keysActiveNeighbors []int
-		for key := range s.Neighbors {
-			keysNeighbors = append(keysNeighbors, key)
-		}
-		for key := range s.ActiveNeighbors {
-			keysActiveNeighbors = append(keysActiveNeighbors, key)
-		}
-		sort.Ints(keysNeighbors)
-		sort.Ints(keysActiveNeighbors)
 
+	// Tri des clés de la map pour les envoyer dans l'ordre
+	var keysNeighbors []int
+	for key := range s.Neighbors {
+		keysNeighbors = append(keysNeighbors, key)
+	}
+	sort.Ints(keysNeighbors)
+
+	for len(s.Counts) < s.NbProcesses {
 		message := types.Message{
 			Counts: s.Counts,
 			Number: s.Number,
@@ -187,8 +183,8 @@ func (s *Server) handleWaveCount(text string) {
 			s.sendWaveMessage(message, s.Neighbors[key])
 		}
 
-		shared.Log(types.WAVE, "Waiting for messages from all active neighbors...")
-		for _, key := range keysActiveNeighbors {
+		shared.Log(types.WAVE, "Waiting for messages from all neighbors...")
+		for _, key := range keysNeighbors {
 			message := <-waveMessageChans[key]
 			for letter, count := range message.Counts {
 				s.Counts[letter] = count
@@ -223,7 +219,6 @@ func (s *Server) handleWaveCount(text string) {
 	for _, key := range keysActiveNeighbors {
 		<-waveMessageChans[key]
 	}
-	// TODO: Format output of topology to be readable in the console
 	shared.Log(types.WAVE, "Counts: "+fmt.Sprint(s.Counts))
 	shared.Log(types.INFO, "Text "+text+" has been processed.")
 	textProcessedChan <- true
