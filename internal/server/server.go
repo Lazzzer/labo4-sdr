@@ -61,9 +61,7 @@ func (s *Server) Run() {
 
 	shared.Log(types.INFO, shared.GREEN+"Server #"+strconv.Itoa(s.Number)+" as Process P"+strconv.Itoa(s.Number)+" listening on "+s.Address+shared.RESET)
 
-	for {
-		s.handleCommunications(connection)
-	}
+	s.handleCommunications(connection)
 }
 
 // startListening initialise la connexion UDP du serveur et écoute les connexions entrantes.
@@ -164,6 +162,7 @@ func (s *Server) handleWaveCount(text string) {
 
 	shared.Log(types.WAVE, shared.ORANGE+"Start building topology..."+shared.RESET)
 
+	// TODO: Still usefull ?
 	// Tri des clés de la map pour les envoyer dans l'ordre
 	var keysNeighbors []int
 	for key := range s.Neighbors {
@@ -171,21 +170,27 @@ func (s *Server) handleWaveCount(text string) {
 	}
 	sort.Ints(keysNeighbors)
 
+	iteration := 1
+
 	for len(s.Counts) < s.NbProcesses {
+
+		shared.Log(types.WAVE, shared.PINK+"Iteration "+strconv.Itoa(iteration)+shared.RESET)
+		iteration++
+
 		message := types.Message{
 			Counts: s.Counts,
 			Number: s.Number,
 			Active: true,
 		}
 
-		shared.Log(types.WAVE, "Sending counts map to all neighbors...")
 		for _, key := range keysNeighbors {
-			s.sendWaveMessage(message, s.Neighbors[key])
-		}
-
-		shared.Log(types.WAVE, "Waiting for messages from all neighbors...")
-		for _, key := range keysNeighbors {
+			err := s.sendWaveMessage(message, s.Neighbors[key])
+			if err != nil {
+				shared.Log(types.ERROR, err.Error())
+			}
+			shared.Log(types.WAVE, "Sent message to P"+strconv.Itoa(key))
 			message := <-waveMessageChans[key]
+			shared.Log(types.WAVE, "Received message from P"+strconv.Itoa(key))
 			for letter, count := range message.Counts {
 				s.Counts[letter] = count
 			}
@@ -208,18 +213,24 @@ func (s *Server) handleWaveCount(text string) {
 	}
 	sort.Ints(keysActiveNeighbors)
 
-	shared.Log(types.WAVE, "Sending final counts map to active neighbors...")
+	// TODO: Mettre l'envoi et la purge pour un processus donné à la suite ?
+	shared.Log(types.WAVE, "Sending final counts map to remaining active neighbors...")
 	// Envoi de la map de compteurs aux voisins actifs
 	for _, key := range keysActiveNeighbors {
-		s.sendWaveMessage(message, s.ActiveNeighbors[key])
+		err := s.sendWaveMessage(message, s.ActiveNeighbors[key])
+		if err != nil {
+			shared.Log(types.ERROR, err.Error())
+		}
+		shared.Log(types.WAVE, "Sent message to P"+strconv.Itoa(key))
 	}
 
-	shared.Log(types.WAVE, "Purging messages from active neighbors...")
+	shared.Log(types.WAVE, "Purging messages from remaining active neighbors...")
 	// Purge des derniers messages reçus
 	for _, key := range keysActiveNeighbors {
 		<-waveMessageChans[key]
+		shared.Log(types.WAVE, "Purged message from P"+strconv.Itoa(key))
 	}
-	shared.Log(types.WAVE, "Counts: "+fmt.Sprint(s.Counts))
+	shared.Log(types.WAVE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
 	shared.Log(types.INFO, "Text "+text+" has been processed.")
 	textProcessedChan <- true
 }
@@ -241,21 +252,22 @@ func (s *Server) handleAsk(text string) string {
 
 func (s *Server) displayOccurrences(counts map[string]int) string {
 	var result string
+	result += "---------------------\n"
 
-	result += "\nServers in this network can process the following letters: "
+	result += "Servers in this network can process the following letters: "
 
 	for _, server := range s.Servers {
 		result += server.Letter + " "
 	}
 
-	result += "\n\nOccurrences of letters in " + s.Text + " :\n\n"
+	result += "\nOccurrences of processable letters in " + s.Text + ":\n"
 
 	for letter, count := range counts {
 		if count != 0 {
 			result += letter + " : " + strconv.Itoa(count) + "\n"
 		}
 	}
-
+	result += "---------------------"
 	return result
 }
 
