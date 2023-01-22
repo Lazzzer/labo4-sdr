@@ -8,7 +8,7 @@ import (
 )
 
 // Parse permet de parser un objet JSON en un objet de type T.
-func Parse[T types.Config | types.ServerConfig | types.Command | types.Message](jsonStr string) (*T, error) {
+func Parse[T types.Config | types.ServerConfig | types.Command | types.WaveMessage](jsonStr string) (*T, error) {
 	var object T
 
 	err := json.Unmarshal([]byte(jsonStr), &object)

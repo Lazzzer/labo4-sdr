@@ -41,7 +41,7 @@ type Command struct {
 	Text string      `json:"text,omitempty"` // Texte à analyser
 }
 
-type Message struct {
+type WaveMessage struct {
 	Counts map[string]int `json:"counts"` //  Map qui contient le compteur de chaque lettre gérée par les processus
 	Number int            `json:"number"` // Numéro du processus qui envoie le message
 	Active bool           `json:"active"` // Indique si le voisin est actif ou non

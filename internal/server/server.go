@@ -12,8 +12,8 @@ import (
 	"github.com/Lazzzer/labo4-sdr/internal/shared/types"
 )
 
-var waveMessageChans = make(map[int](chan types.Message)) // Map de channels qui gère les messages wave pour chaque processus
-var textProcessedChan = make(chan bool, 1)                // Channel qui gère la fin du traitement du texte
+var waveMessageChans = make(map[int](chan types.WaveMessage)) // Map de channels qui gère les messages wave pour chaque processus
+var textProcessedChan = make(chan bool, 1)                    // Channel qui gère la fin du traitement du texte
 
 // TODO : Refactor to have subservers for each algo
 type Server struct {
@@ -40,7 +40,7 @@ func (s *Server) Init(adjacencyList *map[int][]int) {
 	s.Neighbors = make(map[int]types.Server)
 	for i := 0; i < len((*adjacencyList)[s.Number]); i++ {
 		s.Neighbors[(*adjacencyList)[s.Number][i]] = s.Servers[(*adjacencyList)[s.Number][i]]
-		waveMessageChans[(*adjacencyList)[s.Number][i]] = make(chan types.Message, 1)
+		waveMessageChans[(*adjacencyList)[s.Number][i]] = make(chan types.WaveMessage, 1)
 	}
 
 	// Initialisation du processus parent
@@ -106,23 +106,24 @@ func (s *Server) handleCommunications(connection *net.UDPConn) {
 			continue
 		}
 		communication := string(buffer[0:n])
-		err = s.handleMessage(communication)
-		if err != nil {
-			go func() {
-				// Traitement d'une commande si le message n'est pas valide
-				response, err := s.handleCommand(communication)
+		err = s.handleWaveMessage(communication)
+		if err == nil {
+			continue
+		}
+		go func() {
+			// Traitement d'une commande si le message n'est pas valide
+			response, err := s.handleCommand(communication)
+			if err != nil {
+				shared.Log(types.ERROR, err.Error())
+			}
+			// Envoi de la réponse à l'adresse du client si elle existe
+			if response != "" {
+				_, err = connection.WriteToUDP([]byte(response), addr)
 				if err != nil {
 					shared.Log(types.ERROR, err.Error())
 				}
-				// Envoi de la réponse à l'adresse du client si elle existe
-				if response != "" {
-					_, err = connection.WriteToUDP([]byte(response), addr)
-					if err != nil {
-						shared.Log(types.ERROR, err.Error())
-					}
-				}
-			}()
-		}
+			}
+		}()
 	}
 }
 
@@ -131,9 +132,9 @@ func (s *Server) countLetterOccurrences(text string) {
 	shared.Log(types.INFO, "Letter "+s.Letter+" found "+strconv.Itoa(s.Counts[s.Letter])+" time(s) in "+text)
 }
 
-// handleMessage gère les messages reçus des autres serveurs en UDP.
-func (s *Server) handleMessage(messageStr string) error {
-	message, err := shared.Parse[types.Message](messageStr)
+// handleWaveMessage gère les messages reçus des autres serveurs en UDP.
+func (s *Server) handleWaveMessage(messageStr string) error {
+	message, err := shared.Parse[types.WaveMessage](messageStr)
 
 	// TODO: Refactor this
 	if err != nil || message.Number == 0 {
@@ -190,7 +191,7 @@ func (s *Server) handleWaveCount(text string) {
 		shared.Log(types.WAVE, shared.PINK+"Iteration "+strconv.Itoa(iteration)+shared.RESET)
 		iteration++
 
-		message := types.Message{
+		message := types.WaveMessage{
 			Counts: s.Counts,
 			Number: s.Number,
 			Active: true,
@@ -217,7 +218,7 @@ func (s *Server) handleWaveCount(text string) {
 	}
 	shared.Log(types.WAVE, shared.ORANGE+"Topology built!"+shared.RESET)
 
-	message := types.Message{
+	message := types.WaveMessage{
 		Counts: s.Counts,
 		Number: s.Number,
 		Active: false,
@@ -281,7 +282,7 @@ func (s *Server) displayOccurrences(counts map[string]int) string {
 	return result
 }
 
-func (s *Server) sendWaveMessage(message types.Message, neighbor types.Server) error {
+func (s *Server) sendWaveMessage(message types.WaveMessage, neighbor types.Server) error {
 	messageJson, err := json.Marshal(message)
 	if err != nil {
 		shared.Log(types.ERROR, err.Error())
