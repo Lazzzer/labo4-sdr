@@ -89,7 +89,6 @@ func processInput(input string, c *Client) (bool, string, []string, error) {
 		} else {
 			return false, "", nil, fmt.Errorf("invalid wave command")
 		}
-		break
 	case string(types.ProbeCount):
 		if length == 3 {
 			value, err := strconv.Atoi(args[2])
@@ -99,6 +98,7 @@ func processInput(input string, c *Client) (bool, string, []string, error) {
 			command.Type = types.ProbeCount
 			command.Text = args[1]
 			addresses = append(addresses, c.Servers[value])
+			waitResponse = true
 		} else {
 			return false, "", nil, fmt.Errorf("invalid probe command")
 		}

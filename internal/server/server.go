@@ -242,8 +242,7 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 		s.handleWaveCount(command.Text)
 	case types.ProbeCount:
 		s.init(false)
-		s.handleProbeCount(command.Text)
-		return s.handleAsk(command.Text), nil
+		return s.handleProbeCount(command.Text), nil
 	}
 	return "", nil
 }
@@ -315,7 +314,7 @@ func (s *Server) handleWaveCount(text string) {
 }
 
 // handleProbeCount
-func (s *Server) handleProbeCount(text string) {
+func (s *Server) handleProbeCount(text string) string {
 	<-emitterChan
 	emitterChan <- true
 
@@ -355,6 +354,9 @@ func (s *Server) handleProbeCount(text string) {
 	textProcessedChan <- true
 	<-emitterChan
 	emitterChan <- false
+
+	return s.displayOccurrences(s.Counts)
+
 }
 
 func (s *Server) handleAsk(text string) string {
