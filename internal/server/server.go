@@ -15,7 +15,7 @@ import (
 var waveMessageChans = make(map[int](chan types.WaveMessage)) // Map de channels qui gère les messages wave pour chaque processus
 var probeEchoMessageChans = make(map[int](chan types.ProbeEchoMessage))
 var textProcessedChan = make(chan bool, 1) // Channel qui gère la fin du traitement du texte
-var emitter = false                        // Booléen qui indique si le serveur est émetteur ou non
+var emitterChan = make(chan bool, 1)       // Channel qui gère le fait que le serveur est émetteur ou non
 
 // TODO : Refactor to have subservers for each algo
 type Server struct {
@@ -37,6 +37,7 @@ type Server struct {
 // Elle utilise une liste d'adjacence valide pour créer un graphe logique des serveurs présents dans le réseau.
 func (s *Server) Init(adjacencyList *map[int][]int) {
 	textProcessedChan <- false
+	emitterChan <- false
 
 	// Initialisation de la map des voisins avec la liste d'adjacence
 	s.Neighbors = make(map[int]types.Server)
@@ -59,8 +60,6 @@ func (s *Server) Run() {
 // init permet l'initialisation des variables du serveur en fonction du type d'algorithme utilisé et (ré)initialise la
 // map de compteurs, le texte et la map des voisins actifs pour l'algorithme ondulatoire.
 func (s *Server) init(isWave bool) {
-	emitter = true
-
 	s.Text = ""
 	s.Counts = make(map[string]int)
 
@@ -151,12 +150,16 @@ func (s *Server) handleProbeEchoMessage(messageStr string) error {
 				probeEchoMessageChans[message.Number] <- *message
 			}()
 
-			if emitter {
+			if <-emitterChan {
+				emitterChan <- true
 				return nil
 			}
 
 			go func() {
 				<-textProcessedChan
+
+				emitterChan <- true
+
 				s.init(false)
 
 				receivedMessage := <-probeEchoMessageChans[message.Number]
@@ -204,8 +207,9 @@ func (s *Server) handleProbeEchoMessage(messageStr string) error {
 
 				shared.Log(types.PROBE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
 				shared.Log(types.INFO, "Text "+s.Text+" has been processed.")
-				emitter = false
 				textProcessedChan <- true
+				<-emitterChan
+				emitterChan <- false
 			}()
 			return nil
 		}
@@ -239,6 +243,7 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 	case types.ProbeCount:
 		s.init(false)
 		s.handleProbeCount(command.Text)
+		return s.handleAsk(command.Text), nil
 	}
 	return "", nil
 }
@@ -311,6 +316,9 @@ func (s *Server) handleWaveCount(text string) {
 
 // handleProbeCount
 func (s *Server) handleProbeCount(text string) {
+	<-emitterChan
+	emitterChan <- true
+
 	s.Parent = s.Number
 	s.Text = text
 	s.countLetterOccurrences(text)
@@ -344,8 +352,9 @@ func (s *Server) handleProbeCount(text string) {
 
 	shared.Log(types.WAVE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
 	shared.Log(types.INFO, "Text "+text+" has been processed.")
-	emitter = false
 	textProcessedChan <- true
+	<-emitterChan
+	emitterChan <- false
 }
 
 func (s *Server) handleAsk(text string) string {
