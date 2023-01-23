@@ -207,7 +207,7 @@ func (s *Server) handleProbeEchoMessage(messageStr string) error {
 
 				shared.Log(types.PROBE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
 				shared.Log(types.INFO, "Text "+s.Text+" has been processed.")
-				textProcessedChan <- true
+				textProcessedChan <- false
 				<-emitterChan
 				emitterChan <- false
 			}()
