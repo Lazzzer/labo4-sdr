@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -12,12 +11,12 @@ import (
 	"github.com/Lazzzer/labo4-sdr/internal/shared/types"
 )
 
+// Channels
 var waveMessageChans = make(map[int](chan types.WaveMessage)) // Map de channels qui gère les messages wave pour chaque processus
 var probeEchoMessageChans = make(map[int](chan types.ProbeEchoMessage))
 var textProcessedChan = make(chan bool, 1) // Channel qui gère la fin du traitement du texte
 var emitterChan = make(chan bool, 1)       // Channel qui gère le fait que le serveur est émetteur ou non
 
-// TODO : Refactor to have subservers for each algo
 type Server struct {
 	// Network
 	Address string               `json:"address"` // Adresse du serveur
@@ -127,96 +126,6 @@ func (s *Server) countLetterOccurrences(text string) {
 	shared.Log(types.INFO, "Letter "+s.Letter+" found "+strconv.Itoa(s.Counts[s.Letter])+" time(s) in "+text)
 }
 
-// handleWaveMessage gère les messages reçus des autres serveurs en UDP.
-func (s *Server) handleWaveMessage(messageStr string) error {
-	message, err := shared.Parse[types.WaveMessage](messageStr)
-
-	if err != nil || message.Number == 0 {
-		return fmt.Errorf("invalid message type")
-	}
-
-	go func() {
-		waveMessageChans[message.Number] <- *message
-	}()
-
-	return nil
-}
-
-func (s *Server) handleProbeEchoMessage(messageStr string) error {
-	message, err := shared.Parse[types.ProbeEchoMessage](messageStr)
-	if err == nil {
-		if message.Type == types.Probe || message.Type == types.Echo {
-			go func() {
-				probeEchoMessageChans[message.Number] <- *message
-			}()
-
-			if <-emitterChan {
-				emitterChan <- true
-				return nil
-			}
-
-			go func() {
-				<-textProcessedChan
-
-				emitterChan <- true
-
-				s.init(false)
-
-				receivedMessage := <-probeEchoMessageChans[message.Number]
-				shared.Log(types.PROBE, "message received from P"+strconv.Itoa(receivedMessage.Number))
-
-				s.Text = *receivedMessage.Text
-				s.countLetterOccurrences(s.Text)
-				s.Parent = receivedMessage.Number
-
-				message := types.ProbeEchoMessage{
-					Type:   types.Probe,
-					Number: s.Number,
-					Text:   &s.Text,
-				}
-
-				shared.Log(types.PROBE, "Sending probe to neighbors...")
-				for i := range s.Neighbors {
-					if i != s.Parent {
-						s.sendProbeEchoMessage(message, s.Neighbors[i])
-						shared.Log(types.PROBE, "Probe sent to P"+strconv.Itoa(i))
-					}
-				}
-				shared.Log(types.PROBE, "Waiting messages from neighbors...")
-				for i := range s.Neighbors {
-					if i == s.Parent {
-						continue
-					}
-					message := <-probeEchoMessageChans[i]
-					shared.Log(types.PROBE, "Received message from P"+strconv.Itoa(i))
-					if message.Type == types.Echo {
-						shared.Log(types.ECHO, "Received echo from P"+strconv.Itoa(i))
-						for letter, count := range *message.Counts {
-							s.Counts[letter] = count
-						}
-					}
-				}
-
-				message = types.ProbeEchoMessage{
-					Type:   types.Echo,
-					Number: s.Number,
-					Counts: &s.Counts,
-				}
-				s.sendProbeEchoMessage(message, s.Neighbors[s.Parent])
-				shared.Log(types.ECHO, "Echo sent to P"+strconv.Itoa(s.Parent))
-
-				shared.Log(types.PROBE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
-				shared.Log(types.INFO, "Text "+s.Text+" has been processed.")
-				textProcessedChan <- false
-				<-emitterChan
-				emitterChan <- false
-			}()
-			return nil
-		}
-	}
-	return fmt.Errorf("invalid message type")
-}
-
 // handleCommand gère les commandes reçues des clients UDP.
 func (s *Server) handleCommand(commandStr string) (string, error) {
 	command, err := shared.Parse[types.Command](commandStr)
@@ -245,118 +154,6 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 		return s.handleProbeCount(command.Text), nil
 	}
 	return "", nil
-}
-
-// handleWaveCount
-func (s *Server) handleWaveCount(text string) {
-	s.Text = text
-	s.countLetterOccurrences(text)
-
-	shared.Log(types.WAVE, shared.ORANGE+"Start building topology..."+shared.RESET)
-
-	iteration := 1
-	for len(s.Counts) < s.NbProcesses {
-		shared.Log(types.WAVE, shared.PINK+"Iteration "+strconv.Itoa(iteration)+shared.RESET)
-		iteration++
-
-		message := types.WaveMessage{
-			Counts: s.Counts,
-			Number: s.Number,
-			Active: true,
-		}
-
-		for i, neighbor := range s.Neighbors {
-			err := s.sendWaveMessage(message, neighbor)
-			if err != nil {
-				shared.Log(types.ERROR, err.Error())
-			}
-			shared.Log(types.WAVE, "Sent message to P"+strconv.Itoa(i))
-		}
-
-		for i := range s.Neighbors {
-			message := <-waveMessageChans[i]
-			shared.Log(types.WAVE, "Received message from P"+strconv.Itoa(i))
-			for letter, count := range message.Counts {
-				s.Counts[letter] = count
-			}
-			if !message.Active {
-				delete(s.ActiveNeighbors, message.Number)
-			}
-		}
-	}
-	shared.Log(types.WAVE, shared.ORANGE+"Topology built!"+shared.RESET)
-
-	message := types.WaveMessage{
-		Counts: s.Counts,
-		Number: s.Number,
-		Active: false,
-	}
-
-	shared.Log(types.WAVE, "Sending final counts map to remaining active neighbors...")
-	// Envoi de la map de compteurs aux voisins actifs
-	for i := range s.ActiveNeighbors {
-		err := s.sendWaveMessage(message, s.Neighbors[i])
-		if err != nil {
-			shared.Log(types.ERROR, err.Error())
-		}
-		shared.Log(types.WAVE, "Sent message to P"+strconv.Itoa(i))
-	}
-
-	shared.Log(types.WAVE, "Purging messages from remaining active neighbors...")
-	// Purge des derniers messages reçus
-	for i := range s.ActiveNeighbors {
-		<-waveMessageChans[i]
-		shared.Log(types.WAVE, "Purged message from P"+strconv.Itoa(i))
-	}
-	shared.Log(types.WAVE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
-	shared.Log(types.INFO, "Text "+text+" has been processed.")
-	textProcessedChan <- true
-}
-
-// handleProbeCount
-func (s *Server) handleProbeCount(text string) string {
-	<-emitterChan
-	emitterChan <- true
-
-	s.Parent = s.Number
-	s.Text = text
-	s.countLetterOccurrences(text)
-
-	message := types.ProbeEchoMessage{
-		Type:   types.Probe,
-		Number: s.Number,
-		Text:   &text,
-		Counts: nil,
-	}
-
-	shared.Log(types.PROBE, "Sending probe to neighbors...")
-	for i, neighbor := range s.Neighbors {
-		err := s.sendProbeEchoMessage(message, neighbor)
-		if err != nil {
-			shared.Log(types.ERROR, err.Error())
-		}
-		shared.Log(types.PROBE, "Sent probe to P"+strconv.Itoa(i))
-	}
-
-	shared.Log(types.PROBE, "Waiting echoes from neighbors...")
-	for i := range s.Neighbors {
-		message := <-probeEchoMessageChans[i]
-		if message.Type == types.Echo {
-			shared.Log(types.ECHO, "Received echo from P"+strconv.Itoa(message.Number))
-			for letter, count := range *message.Counts {
-				s.Counts[letter] = count
-			}
-		}
-	}
-
-	shared.Log(types.WAVE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
-	shared.Log(types.INFO, "Text "+text+" has been processed.")
-	textProcessedChan <- true
-	<-emitterChan
-	emitterChan <- false
-
-	return s.displayOccurrences(s.Counts)
-
 }
 
 func (s *Server) handleAsk(text string) string {
@@ -388,48 +185,4 @@ func (s *Server) displayOccurrences(counts map[string]int) string {
 	}
 	result += "---------------------"
 	return result
-}
-
-func (s *Server) sendWaveMessage(message types.WaveMessage, neighbor types.Server) error {
-	messageJson, err := json.Marshal(message)
-	if err != nil {
-		shared.Log(types.ERROR, err.Error())
-		return err
-	}
-
-	destUdpAddr, err := net.ResolveUDPAddr("udp", neighbor.Address)
-	if err != nil {
-		return err
-	}
-	connection, err := net.DialUDP("udp", nil, destUdpAddr)
-	if err != nil {
-		return err
-	}
-	_, err = connection.Write(messageJson)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *Server) sendProbeEchoMessage(message types.ProbeEchoMessage, neighbor types.Server) error {
-	messageJson, err := json.Marshal(message)
-	if err != nil {
-		shared.Log(types.ERROR, err.Error())
-		return err
-	}
-
-	destUdpAddr, err := net.ResolveUDPAddr("udp", neighbor.Address)
-	if err != nil {
-		return err
-	}
-	connection, err := net.DialUDP("udp", nil, destUdpAddr)
-	if err != nil {
-		return err
-	}
-	_, err = connection.Write(messageJson)
-	if err != nil {
-		return err
-	}
-	return nil
 }
