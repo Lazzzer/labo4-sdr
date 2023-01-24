@@ -17,9 +17,9 @@ import (
 	"github.com/Lazzzer/labo4-sdr/internal/shared/types"
 )
 
-// initiateWaveCount initialise le comptage des occurrences de la lettre du serveur et applique l'algorithme ondulatoire
+// initWaveCount initialise le comptage des occurrences de la lettre du serveur et applique l'algorithme ondulatoire
 // pour transmettre les informations aux voisins et recevoir leur comptage.
-func (s *Server) initiateWaveCount(text string) {
+func (s *Server) initWaveCount(text string) {
 	s.init(true)
 	s.Text = text
 	s.countLetterOccurrences(text)
@@ -55,7 +55,7 @@ func (s *Server) initiateWaveCount(text string) {
 			}
 			if !message.Active {
 				delete(s.ActiveNeighbors, message.Number)
-				shared.Log(types.WAVE, "P"+strconv.Itoa(i)+" is now inactive.")
+				shared.Log(types.WAVE, "P"+strconv.Itoa(i)+" is now inactive")
 			}
 		}
 	}
@@ -85,8 +85,8 @@ func (s *Server) initiateWaveCount(text string) {
 		shared.Log(types.WAVE, "Purged message from P"+strconv.Itoa(i))
 	}
 
-	shared.Log(types.WAVE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
-	shared.Log(types.INFO, "Text "+text+" has been processed.")
+	shared.Log(types.INFO, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
+	shared.Log(types.INFO, "Text "+text+" has been processed")
 	textProcessedChan <- true
 }
 

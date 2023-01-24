@@ -153,10 +153,9 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 	<-textProcessedChan
 	switch command.Type {
 	case types.WaveCount:
-		s.initiateWaveCount(command.Text)
+		s.initWaveCount(command.Text)
 	case types.ProbeCount:
-		s.init(false)
-		return s.handleProbeCount(command.Text), nil
+		return s.initProbeEchoCountAsRoot(command.Text), nil
 	}
 	return "", nil
 }

@@ -17,14 +17,20 @@ import (
 	"github.com/Lazzzer/labo4-sdr/internal/shared/types"
 )
 
-// handleProbeCount
-func (s *Server) handleProbeCount(text string) string {
+// initProbeEchoCountAsRoot initialise le traitement d'un texte avec l'algorithme sondes et échos en tant que processus racine.
+// La méthode retourne le résultat pour être traité comme réponse à la commande du client.
+func (s *Server) initProbeEchoCountAsRoot(text string) string {
 	<-emitterChan
-	emitterChan <- true
+	emitterChan <- true // ainsi, dans le handle, le serveur saura qu'il a déjà émis et qu'il ne doit pas initier l'algorithme de nouveau
 
+	shared.Log(types.PROBE, "Processing text "+text+" as root process")
+
+	s.init(false)
 	s.Parent = s.Number
 	s.Text = text
 	s.countLetterOccurrences(text)
+
+	// Envoi des sondes aux voisins
 
 	message := types.ProbeEchoMessage{
 		Type:   types.Probe,
@@ -33,7 +39,6 @@ func (s *Server) handleProbeCount(text string) string {
 		Counts: nil,
 	}
 
-	shared.Log(types.PROBE, "Sending probe to neighbors...")
 	for i, neighbor := range s.Neighbors {
 		err := sendMessage(message, neighbor)
 		if err != nil {
@@ -42,7 +47,9 @@ func (s *Server) handleProbeCount(text string) string {
 		shared.Log(types.PROBE, "Sent probe to P"+strconv.Itoa(i))
 	}
 
-	shared.Log(types.PROBE, "Waiting echoes from neighbors...")
+	// Attente des réponses des voisins et traitement des échos
+
+	shared.Log(types.ECHO, "Waiting echoes from children...")
 	for i := range s.Neighbors {
 		message := <-probeEchoMessageChans[i]
 		if message.Type == types.Echo {
@@ -53,16 +60,82 @@ func (s *Server) handleProbeCount(text string) string {
 		}
 	}
 
-	shared.Log(types.WAVE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
-	shared.Log(types.INFO, "Text "+text+" has been processed.")
+	shared.Log(types.INFO, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
+	shared.Log(types.INFO, "Text "+text+" has been processed")
 	textProcessedChan <- true
 	<-emitterChan
 	emitterChan <- false
 
 	return s.displayOccurrences(s.Counts)
-
 }
 
+// initProbeEchoCountAsLeaf initialise le traitement d'un texte avec l'algorithme sondes et échos en tant que processus feuille.
+func (s *Server) initProbeEchoCountAsLeaf(message types.ProbeEchoMessage) {
+	<-textProcessedChan
+
+	emitterChan <- true
+
+	s.init(false)
+
+	receivedMessage := <-probeEchoMessageChans[message.Number]
+	shared.Log(types.PROBE, "Received Probe from P"+strconv.Itoa(receivedMessage.Number))
+	shared.Log(types.PROBE, "Processing text "+*receivedMessage.Text+" as leaf process")
+
+	s.Text = *receivedMessage.Text
+	s.countLetterOccurrences(s.Text)
+	s.Parent = receivedMessage.Number
+
+	// Envoi d'une sonde à tous les voisins sauf au parent
+
+	newMessage := types.ProbeEchoMessage{
+		Type:   types.Probe,
+		Number: s.Number,
+		Text:   &s.Text,
+	}
+
+	for i := range s.Neighbors {
+		if i != s.Parent {
+			sendMessage(newMessage, s.Neighbors[i])
+			shared.Log(types.PROBE, "Sent probe to P"+strconv.Itoa(i))
+		}
+	}
+
+	// Attente des réponses des voisins et traitement des échos
+
+	for i := range s.Neighbors {
+		if i == s.Parent {
+			continue
+		}
+		message := <-probeEchoMessageChans[i]
+		if message.Type == types.Echo {
+			shared.Log(types.ECHO, "Received echo from P"+strconv.Itoa(i))
+			for letter, count := range *message.Counts {
+				s.Counts[letter] = count
+			}
+		} else {
+			shared.Log(types.PROBE, "Received probe from P"+strconv.Itoa(i)+", not handling it") // TODO: juste ??
+		}
+	}
+
+	// Envoi de l'écho au parent
+
+	newMessage = types.ProbeEchoMessage{
+		Type:   types.Echo,
+		Number: s.Number,
+		Counts: &s.Counts,
+	}
+	sendMessage(newMessage, s.Neighbors[s.Parent])
+	shared.Log(types.ECHO, "Sent echo to P"+strconv.Itoa(s.Parent))
+
+	shared.Log(types.INFO, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
+	shared.Log(types.INFO, "Processed text "+s.Text+" as leaf process, root process can now display the result")
+	textProcessedChan <- false // Les serveurs feuilles ne peuvent pas répondre à des asks car leur map de comptage n'est pas complète
+	<-emitterChan
+	emitterChan <- false
+}
+
+// handleProbeEchoMessage traite un message de type Probe ou Echo.
+// Si le serveur n'a pas encore émis, il initie l'algorithme en tant que processus feuille dans une goroutine.
 func (s *Server) handleProbeEchoMessage(messageStr string) error {
 	message, err := shared.Parse[types.ProbeEchoMessage](messageStr)
 	if err == nil {
@@ -70,68 +143,11 @@ func (s *Server) handleProbeEchoMessage(messageStr string) error {
 			go func() {
 				probeEchoMessageChans[message.Number] <- *message
 			}()
-
 			if <-emitterChan {
-				emitterChan <- true
+				emitterChan <- true // si le serveur a déjà émis, il ne doit pas initier l'algorithme de nouveau
 				return nil
 			}
-
-			go func() {
-				<-textProcessedChan
-
-				emitterChan <- true
-
-				s.init(false)
-
-				receivedMessage := <-probeEchoMessageChans[message.Number]
-				shared.Log(types.PROBE, "message received from P"+strconv.Itoa(receivedMessage.Number))
-
-				s.Text = *receivedMessage.Text
-				s.countLetterOccurrences(s.Text)
-				s.Parent = receivedMessage.Number
-
-				message := types.ProbeEchoMessage{
-					Type:   types.Probe,
-					Number: s.Number,
-					Text:   &s.Text,
-				}
-
-				shared.Log(types.PROBE, "Sending probe to neighbors...")
-				for i := range s.Neighbors {
-					if i != s.Parent {
-						sendMessage(message, s.Neighbors[i])
-						shared.Log(types.PROBE, "Probe sent to P"+strconv.Itoa(i))
-					}
-				}
-				shared.Log(types.PROBE, "Waiting messages from neighbors...")
-				for i := range s.Neighbors {
-					if i == s.Parent {
-						continue
-					}
-					message := <-probeEchoMessageChans[i]
-					shared.Log(types.PROBE, "Received message from P"+strconv.Itoa(i))
-					if message.Type == types.Echo {
-						shared.Log(types.ECHO, "Received echo from P"+strconv.Itoa(i))
-						for letter, count := range *message.Counts {
-							s.Counts[letter] = count
-						}
-					}
-				}
-
-				message = types.ProbeEchoMessage{
-					Type:   types.Echo,
-					Number: s.Number,
-					Counts: &s.Counts,
-				}
-				sendMessage(message, s.Neighbors[s.Parent])
-				shared.Log(types.ECHO, "Echo sent to P"+strconv.Itoa(s.Parent))
-
-				shared.Log(types.PROBE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
-				shared.Log(types.INFO, "Text "+s.Text+" has been processed.")
-				textProcessedChan <- false
-				<-emitterChan
-				emitterChan <- false
-			}()
+			go s.initProbeEchoCountAsLeaf(*message)
 			return nil
 		}
 	}
