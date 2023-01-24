@@ -80,9 +80,8 @@ func (s *Server) Run() {
 }
 
 // init permet l'initialisation des variables du serveur en fonction du type d'algorithme utilisé et (ré)initialise la
-// map de compteurs, le texte et la map des voisins actifs pour l'algorithme ondulatoire.
+// map de compteurs et la map des voisins actifs pour l'algorithme ondulatoire.
 func (s *Server) init(isWave bool) {
-	s.Text = ""
 	s.Counts = make(map[string]int)
 
 	if isWave {
@@ -153,8 +152,7 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 	<-textProcessedChan
 	switch command.Type {
 	case types.WaveCount:
-		s.init(true)
-		s.handleWaveCount(command.Text)
+		s.initiateWaveCount(command.Text)
 	case types.ProbeCount:
 		s.init(false)
 		return s.handleProbeCount(command.Text), nil
