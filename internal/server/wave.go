@@ -10,9 +10,7 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
-	"net"
 	"strconv"
 
 	"github.com/Lazzzer/labo4-sdr/internal/shared"
@@ -42,7 +40,7 @@ func (s *Server) initiateWaveCount(text string) {
 			Active: true,
 		}
 		for i, neighbor := range s.Neighbors {
-			err := s.sendWaveMessage(message, neighbor)
+			err := sendMessage(message, neighbor)
 			if err != nil {
 				shared.Log(types.ERROR, err.Error())
 			}
@@ -73,7 +71,7 @@ func (s *Server) initiateWaveCount(text string) {
 	}
 
 	for i := range s.ActiveNeighbors {
-		err := s.sendWaveMessage(message, s.Neighbors[i])
+		err := sendMessage(message, s.Neighbors[i])
 		if err != nil {
 			shared.Log(types.ERROR, err.Error())
 		}
@@ -105,28 +103,5 @@ func (s *Server) handleWaveMessage(messageStr string) error {
 		waveMessageChans[message.Number] <- *message
 	}()
 
-	return nil
-}
-
-// TODO: Méthode générique ?
-func (s *Server) sendWaveMessage(message types.WaveMessage, neighbor types.Server) error {
-	messageJson, err := json.Marshal(message)
-	if err != nil {
-		shared.Log(types.ERROR, err.Error())
-		return err
-	}
-
-	destUdpAddr, err := net.ResolveUDPAddr("udp", neighbor.Address)
-	if err != nil {
-		return err
-	}
-	connection, err := net.DialUDP("udp", nil, destUdpAddr)
-	if err != nil {
-		return err
-	}
-	_, err = connection.Write(messageJson)
-	if err != nil {
-		return err
-	}
 	return nil
 }

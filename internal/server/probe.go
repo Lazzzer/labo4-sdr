@@ -1,9 +1,16 @@
+// Auteurs: Jonathan Friedli, Lazar Pavicevic
+// Labo 4 SDR
+
+// Package serveur propose un serveur UDP connecté dans un réseau de serveurs. Le serveur peut recevoir des commandes de clients UDP et
+// traiter des occurrences de lettre dans des textes de manière distribuée en utilisant l'algorithme ondulatoire ou l'algorithme sondes et échos.
+// Il est possible de choisir l'algorithme à utiliser en lui envoyant la commande correspondante avec le texte à traiter.
+// Le résultat est communiqué soit directement au client émetteur de la commande avec l'algorithme sondes et échos, soit sur demande
+// avec une commande "ask" lors de l'utilisation de l'algorithme ondulatoire. De plus, dans une analyse utilisant l'algorithme sondes et échos, le processus racine peut également recevoir
+// des commandes "ask" tant qu'il n'y a pas eu de nouveau traitement de texte.
 package server
 
 import (
-	"encoding/json"
 	"fmt"
-	"net"
 	"strconv"
 
 	"github.com/Lazzzer/labo4-sdr/internal/shared"
@@ -28,7 +35,7 @@ func (s *Server) handleProbeCount(text string) string {
 
 	shared.Log(types.PROBE, "Sending probe to neighbors...")
 	for i, neighbor := range s.Neighbors {
-		err := s.sendProbeEchoMessage(message, neighbor)
+		err := sendMessage(message, neighbor)
 		if err != nil {
 			shared.Log(types.ERROR, err.Error())
 		}
@@ -92,7 +99,7 @@ func (s *Server) handleProbeEchoMessage(messageStr string) error {
 				shared.Log(types.PROBE, "Sending probe to neighbors...")
 				for i := range s.Neighbors {
 					if i != s.Parent {
-						s.sendProbeEchoMessage(message, s.Neighbors[i])
+						sendMessage(message, s.Neighbors[i])
 						shared.Log(types.PROBE, "Probe sent to P"+strconv.Itoa(i))
 					}
 				}
@@ -116,7 +123,7 @@ func (s *Server) handleProbeEchoMessage(messageStr string) error {
 					Number: s.Number,
 					Counts: &s.Counts,
 				}
-				s.sendProbeEchoMessage(message, s.Neighbors[s.Parent])
+				sendMessage(message, s.Neighbors[s.Parent])
 				shared.Log(types.ECHO, "Echo sent to P"+strconv.Itoa(s.Parent))
 
 				shared.Log(types.PROBE, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
@@ -129,26 +136,4 @@ func (s *Server) handleProbeEchoMessage(messageStr string) error {
 		}
 	}
 	return fmt.Errorf("invalid message type")
-}
-
-func (s *Server) sendProbeEchoMessage(message types.ProbeEchoMessage, neighbor types.Server) error {
-	messageJson, err := json.Marshal(message)
-	if err != nil {
-		shared.Log(types.ERROR, err.Error())
-		return err
-	}
-
-	destUdpAddr, err := net.ResolveUDPAddr("udp", neighbor.Address)
-	if err != nil {
-		return err
-	}
-	connection, err := net.DialUDP("udp", nil, destUdpAddr)
-	if err != nil {
-		return err
-	}
-	_, err = connection.Write(messageJson)
-	if err != nil {
-		return err
-	}
-	return nil
 }

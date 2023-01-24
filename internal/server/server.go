@@ -10,6 +10,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -196,4 +197,28 @@ func (s *Server) displayOccurrences(counts map[string]int) string {
 	}
 	result += "---------------------"
 	return result
+}
+
+// sendMessage est une fonction générique permettant d'envoyer un message de type T à un voisin du réseau en UDP.
+// Le message peut être de type WaveMessage ou ProbeEchoMessage.
+func sendMessage[T types.WaveMessage | types.ProbeEchoMessage](message T, neighbor types.Server) error {
+	messageJson, err := json.Marshal(message)
+	if err != nil {
+		shared.Log(types.ERROR, err.Error())
+		return err
+	}
+
+	destUdpAddr, err := net.ResolveUDPAddr("udp", neighbor.Address)
+	if err != nil {
+		return err
+	}
+	connection, err := net.DialUDP("udp", nil, destUdpAddr)
+	if err != nil {
+		return err
+	}
+	_, err = connection.Write(messageJson)
+	if err != nil {
+		return err
+	}
+	return nil
 }
