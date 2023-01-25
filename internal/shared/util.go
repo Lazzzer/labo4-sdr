@@ -1,3 +1,8 @@
+// Auteurs: Jonathan Friedli, Lazar Pavicevic
+// Labo 4 SDR
+// source: https://twin.sh/articles/35/how-to-add-colors-to-your-console-terminal-output-in-go
+
+// Package shared propose des fonctions utilitaires pour le projet.
 package shared
 
 import (
