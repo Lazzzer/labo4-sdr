@@ -27,6 +27,8 @@ var probeEchoMessageChans = make(map[int](chan types.ProbeEchoMessage)) // Map d
 var textProcessedChan = make(chan bool, 1)                              // Channel qui indique si un texte a été traité ou non et bloque le traitement simultané
 var emitterChan = make(chan bool, 1)                                    // Channel qui gère si le serveur a déjà émis un message dans l'algorithme sondes et échos
 
+// Server est la structure qui représente un serveur UDP connecté dans un réseau de serveurs.
+// Elle contient les propriétés du processus et les propriétés du réseau.
 type Server struct {
 	// Propriétés liées au réseau
 

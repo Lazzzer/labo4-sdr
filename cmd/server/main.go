@@ -1,3 +1,8 @@
+// Auteurs: Jonathan Friedli, Lazar Pavicevic
+// Labo 4 SDR
+
+// Package main est le point d'entrée du programme permettant de démarrer le serveur.
+// Le serveur a à disposition un fichier de configuration qui contient les adresses des serveurs ainsi que une liste d'adjacence représentant le graphe du réseau.
 package main
 
 import (
@@ -14,6 +19,7 @@ import (
 //go:embed config.json
 var config string
 
+// main est la méthode d'entrée du programme
 func main() {
 	flag.Parse()
 	if flag.Arg(0) == "" {

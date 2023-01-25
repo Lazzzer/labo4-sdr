@@ -1,3 +1,9 @@
+// Auteurs: Jonathan Friedli, Lazar Pavicevic
+// Labo 4 SDR
+
+// Package client propose un client UDP envoyant des commandes sous forme de string json à des serveurs du réseau.
+//
+// Le client parse l'entrée de l'utilisateur et envoie la commande correspondante au serveur.
 package client
 
 import (
@@ -16,12 +22,14 @@ import (
 	"github.com/Lazzzer/labo4-sdr/internal/shared/types"
 )
 
+// Client représente un client UDP connecté à un réseau de serveurs capable d'envoyer des commandes de traitement de texte.
 type Client struct {
-	Servers map[int]string
+	Servers map[int]string // Map des serveurs du réseau, avec comme clé le numéro du serveur et comme valeur l'adresse du serveur
 }
 
-var exitChan = make(chan os.Signal, 1) // Chan qui gère le ctrl + c
+var exitChan = make(chan os.Signal, 1) // Chan qui gère le CTRL+C
 
+// Run est la méthode principale du client. Elle gère l'entrée de l'utilisateur et envoie les commandes aux serveurs.
 func (c *Client) Run() {
 	signal.Notify(exitChan, syscall.SIGINT)
 
@@ -52,6 +60,11 @@ func (c *Client) Run() {
 	}
 }
 
+// processInput parse l'entrée de l'utilisateur et retourne un tuple contenant :
+// - un booléen indiquant si le client doit attendre une réponse du serveur
+// - la commande à envoyer au serveur sous forme de string json
+// - l'adresse du serveur auquel envoyer la commande
+// - une erreur si l'entrée est invalide
 func (c *Client) processInput(input string) (bool, string, []string, error) {
 	args := strings.Fields(input)
 	length := len(args)
@@ -114,7 +127,6 @@ func (c *Client) processInput(input string) (bool, string, []string, error) {
 }
 
 // sendCommand envoie une commande au serveur spécifié. Elle s'occupe de la connexion UDP et de la fermeture de celle-ci.
-// Elle a également la possibilité de timeout si le serveur ne répond pas.
 func (c *Client) sendCommand(command string, address string, waitResponse bool) {
 	udpAddr, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
@@ -152,6 +164,7 @@ func (c *Client) sendCommand(command string, address string, waitResponse bool) 
 	}
 }
 
+// displayPrompt affiche les commandes disponibles pour l'utilisateur.
 func displayPrompt() {
 	fmt.Println("\nAvailable commands:")
 	fmt.Println(shared.YELLOW + " - wave <word>")
