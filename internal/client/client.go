@@ -27,11 +27,11 @@ func (c *Client) Run() {
 
 	go func() {
 		<-exitChan
-		fmt.Println("Bye, have a great time.")
+		fmt.Println("\nBye, have a great time.")
 		os.Exit(0)
 	}()
 
-	fmt.Println("SDR - Labo 4 - Client")
+	fmt.Println(shared.BOLD + "SDR - Labo 4 - Client" + shared.RESET)
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		displayPrompt()
@@ -40,9 +40,9 @@ func (c *Client) Run() {
 			shared.Log(types.ERROR, err.Error())
 			continue
 		}
-		waitResponse, command, addresses, err := processInput(input, c)
+		waitResponse, command, addresses, err := c.processInput(input)
 		if err != nil {
-			shared.Log(types.ERROR, err.Error())
+			fmt.Println(shared.RED + "\nERROR: " + err.Error() + shared.RESET)
 			continue
 		}
 
@@ -52,16 +52,7 @@ func (c *Client) Run() {
 	}
 }
 
-func displayPrompt() {
-	fmt.Println("\n Available commands:")
-	fmt.Println(" - wave <word>")
-	fmt.Println(" - probe <word> <serverToAsk>")
-	fmt.Println(" - ask <serverToAsk>")
-	fmt.Println(" - quit")
-	fmt.Println("Enter a command to send:")
-}
-
-func processInput(input string, c *Client) (bool, string, []string, error) {
+func (c *Client) processInput(input string) (bool, string, []string, error) {
 	args := strings.Fields(input)
 	length := len(args)
 
@@ -70,51 +61,47 @@ func processInput(input string, c *Client) (bool, string, []string, error) {
 		return false, "", nil, fmt.Errorf("empty input")
 	}
 
-	// Quit
-	if args[0] == string(types.Quit) {
-		exitChan <- syscall.SIGINT
-	}
 	var command types.Command
 	var addresses []string
 	waitResponse := false
 
 	switch args[0] {
 	case string(types.WaveCount):
-		if length == 2 {
-			command.Type = types.WaveCount
-			command.Text = args[1]
-			for _, address := range c.Servers {
-				addresses = append(addresses, address)
-			}
-		} else {
+		if length != 2 {
 			return false, "", nil, fmt.Errorf("invalid wave command")
 		}
+		command.Type = types.WaveCount
+		command.Text = args[1]
+		for _, address := range c.Servers {
+			addresses = append(addresses, address)
+		}
 	case string(types.ProbeCount):
-		if length == 3 {
-			value, err := strconv.Atoi(args[2])
-			if err != nil || value < 1 || value > len(c.Servers) {
-				return false, "", nil, fmt.Errorf("invalid server number")
-			}
-			command.Type = types.ProbeCount
-			command.Text = args[1]
-			addresses = append(addresses, c.Servers[value])
-			waitResponse = true
-		} else {
+		if length != 3 {
 			return false, "", nil, fmt.Errorf("invalid probe command")
 		}
+		value, err := strconv.Atoi(args[2])
+		if err != nil || value < 1 || value > len(c.Servers) {
+			return false, "", nil, fmt.Errorf("invalid server number")
+		}
+		command.Type = types.ProbeCount
+		command.Text = args[1]
+		addresses = append(addresses, c.Servers[value])
+		waitResponse = true
 	case string(types.Ask):
-		if length == 2 {
-			value, err := strconv.Atoi(args[1])
-			if err != nil || value < 1 || value > len(c.Servers) {
-				return false, "", nil, fmt.Errorf("invalid server number")
-			}
-			command.Type = types.Ask
-			command.Text = ""
-			addresses = append(addresses, c.Servers[value])
-			waitResponse = true
-		} else {
+		if length != 2 {
 			return false, "", nil, fmt.Errorf("invalid ask command")
 		}
+		value, err := strconv.Atoi(args[1])
+		if err != nil || value < 1 || value > len(c.Servers) {
+			return false, "", nil, fmt.Errorf("invalid server number")
+		}
+		command.Type = types.Ask
+		command.Text = ""
+		addresses = append(addresses, c.Servers[value])
+		waitResponse = true
+	case string(types.Quit):
+		fmt.Println("\nBye, have a great time.")
+		os.Exit(0)
 	default:
 		return false, "", nil, fmt.Errorf("unknown command")
 	}
@@ -157,11 +144,19 @@ func (c *Client) sendCommand(command string, address string, waitResponse bool) 
 		n, servAddr, err := connection.ReadFromUDP(buffer)
 
 		if err != nil {
-			// TODO: Vérifier le comportement
-			fmt.Println(shared.RED + "Server @" + udpAddr.String() + " is unreachable" + shared.RESET)
+			fmt.Println(shared.RED + "\nServer @" + udpAddr.String() + " is unreachable" + shared.RESET)
 			return
 		}
 
-		fmt.Println(shared.GREEN + "From Server @" + servAddr.String() + "\n" + shared.RESET + string(buffer[0:n]))
+		fmt.Println(shared.GREEN + "\nFrom Server @" + servAddr.String() + "\n" + shared.RESET + string(buffer[0:n]))
 	}
+}
+
+func displayPrompt() {
+	fmt.Println("\nAvailable commands:")
+	fmt.Println(shared.YELLOW + " - wave <word>")
+	fmt.Println(" - probe <word> <serverToAsk>")
+	fmt.Println(" - ask <serverToAsk>")
+	fmt.Println(" - quit" + shared.RESET)
+	fmt.Println(shared.BOLD + "\nEnter a command to send:" + shared.RESET)
 }

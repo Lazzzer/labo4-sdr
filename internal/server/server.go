@@ -165,7 +165,7 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 func (s *Server) handleAsk(text string) string {
 	if !<-textProcessedChan {
 		textProcessedChan <- false
-		return "No text processed yet."
+		return "No processed text to show"
 	}
 
 	textProcessedChan <- true
