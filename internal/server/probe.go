@@ -113,7 +113,7 @@ func (s *Server) initProbeEchoCountAsLeaf(message types.ProbeEchoMessage) {
 				s.Counts[letter] = count
 			}
 		} else {
-			shared.Log(types.PROBE, "Received probe from P"+strconv.Itoa(i)+", not handling it") // TODO: juste ??
+			shared.Log(types.PROBE, "Received probe from P"+strconv.Itoa(i)+", not handling it")
 		}
 	}
 
