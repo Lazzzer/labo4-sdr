@@ -36,7 +36,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if number > len(configuration.Servers) || number < 0 {
+	_, ok := configuration.Servers[number]
+	if !ok {
 		log.Fatal("Invalid server number")
 	}
 

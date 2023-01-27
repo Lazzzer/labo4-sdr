@@ -93,9 +93,13 @@ func (c *Client) processInput(input string) (bool, string, []string, error) {
 			return false, "", nil, fmt.Errorf("invalid probe command")
 		}
 		value, err := strconv.Atoi(args[2])
-		if err != nil || value < 1 || value > len(c.Servers) {
+		if err != nil {
 			return false, "", nil, fmt.Errorf("invalid server number")
 		}
+		if _, ok := c.Servers[value]; !ok {
+			return false, "", nil, fmt.Errorf("invalid server number")
+		}
+
 		command.Type = types.ProbeCount
 		command.Text = args[1]
 		addresses = append(addresses, c.Servers[value])
@@ -105,9 +109,13 @@ func (c *Client) processInput(input string) (bool, string, []string, error) {
 			return false, "", nil, fmt.Errorf("invalid ask command")
 		}
 		value, err := strconv.Atoi(args[1])
-		if err != nil || value < 1 || value > len(c.Servers) {
+		if err != nil {
 			return false, "", nil, fmt.Errorf("invalid server number")
 		}
+		if _, ok := c.Servers[value]; !ok {
+			return false, "", nil, fmt.Errorf("invalid server number")
+		}
+
 		command.Type = types.Ask
 		command.Text = ""
 		addresses = append(addresses, c.Servers[value])
