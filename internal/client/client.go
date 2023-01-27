@@ -176,8 +176,8 @@ func (c *Client) sendCommand(command string, address string, waitResponse bool) 
 func displayPrompt() {
 	fmt.Println("\nAvailable commands:")
 	fmt.Println(shared.YELLOW + " - wave <word>")
-	fmt.Println(" - probe <word> <serverToAsk>")
-	fmt.Println(" - ask <serverToAsk>")
+	fmt.Println(" - probe <word> <server number>")
+	fmt.Println(" - ask <server number>")
 	fmt.Println(" - quit" + shared.RESET)
 	fmt.Println(shared.BOLD + "\nEnter a command to send:" + shared.RESET)
 }
