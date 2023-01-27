@@ -1,4 +1,4 @@
-# Laboratoire 4 de SDR - Application de l'algorithme de Chang et Roberts
+# Laboratoire 4 de SDR - Comptage du nombre d'occurrences de lettres dans un texte dans un système distribué
 
 ## Auteurs
 
@@ -56,28 +56,58 @@ quit
 
 # Les tests
 
+Il n'était pas demandé d'effectuer des tests unitaires et automatisés pour ce laboratoire. Il n'était pas non plus demandé de simuler des ralentissements ou des paquets perdus. Nous avons donc effectué des tests manuels pour vérifier le bon fonctionnement de notre application sans utiliser de mode debug simulant ces dégradations.
+
+Tous nos tests sont effectués avec la configuration fournie dans les fichiers de `config.json` de chaque exécutable. Dans le fichier `config.json` du serveur, nous avons ajouté une liste d'adjacence pour identifier les serveurs voisins de chaque serveur.
+
+Le graphe logique de notre réseau est le suivant:
+
 ![graph](./docs/graph.png)
+
+Nous avons ajouté un cycle simple entre P0-P1-P2 pour tester la détection de cycle. En rouge, nous retrouvons l'unique lettre qui sera traitée par le serveur.
 
 ## Procédure de tests manuels
 
 ### Tests basiques
 
 
-### Test 1
-Faire un wave puis vérifier la réponse.
+### Test n°1
+On commence par faire la commande `ask` sur le serveur 0
+
+Input du client:
+```bash
+ask 0
+```
+
+Résultat attendu:
+Le server 0 nous répond qu'il n'y a pas encore eu de texte traité.
+
+### Test n°2
+On fait la commande `wave` avec le mot "pomme" puis on fait la commande `ask` sur le serveur 0.
+
+Input du client:
+```bash
+wave pomme
+ask 0
+```
+
+Résultat attendu:
+Le server 0 nous montre le nombre d'occurrences de chaque lettre dans le mot "pomme".
+
+### Test n°3
+On fait la commande `probe` avec le mot "pomme" sur le serveur 0 puis on fait la commande `ask` sur le serveur 1.
+
+Input du client:
+```bash
+probe pomme 0
+ask 1
+```
+
+Résultat attendu:
+Le server 0 nous montre le nombre d'occurrences de chaque lettre dans le mot "pomme".
 
 ### Test 2
 Faire un wave puis vérifier si la réponse est similaire sur 2 serveurs différents.
-
-### Test 3
-Faire deux wave de suite.
-
-### Test 4
-Faire un probe puis vérifier la réponse
-
-### Test 5
-
-### Test 6
 
 
 ## Implémentation
