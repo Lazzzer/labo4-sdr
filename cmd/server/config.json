@@ -1,46 +1,46 @@
 {
   "servers": {
-    "1": {
+    "0": {
       "letter": "P",
       "address": "localhost:8080"
     },
-    "2": {
+    "1": {
       "letter": "O",
       "address": "localhost:8081"
     },
-    "3": {
+    "2": {
       "letter": "M",
       "address": "localhost:8082"
     },
-    "4": {
+    "3": {
       "letter": "T",
       "address": "localhost:8083"
     },
-    "5": {
+    "4": {
       "letter": "E",
       "address": "localhost:8084"
     }
   },
   "adjacency_list": {
-    "1": [
-      2,
-      3,
-      4
-    ],
-    "2": [
+    "0": [
       1,
+      2,
       3
     ],
-    "3": [
-      1,
+    "1": [
+      0,
       2
     ],
-    "4": [
-      1,
-      5
+    "2": [
+      0,
+      1
     ],
-    "5": [
+    "3": [
+      0,
       4
+    ],
+    "4": [
+      3
     ]
   }
 }
