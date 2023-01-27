@@ -68,8 +68,6 @@ Nous avons ajouté un cycle simple entre P0-P1-P2 pour tester la détection de c
 
 ## Procédure de tests manuels
 
-### Tests basiques
-
 
 ### Test n°1
 On commence par faire la commande `ask` sur le serveur 0
@@ -100,14 +98,58 @@ On fait la commande `probe` avec le mot "pomme" sur le serveur 0 puis on fait la
 Input du client:
 ```bash
 probe pomme 0
-ask 1
 ```
 
 Résultat attendu:
 Le server 0 nous montre le nombre d'occurrences de chaque lettre dans le mot "pomme".
 
-### Test 2
+### Test n°4
+Faire un wave avec un mot comprenant des lettres non traitées.
+Input du client:
+```bash
+wave vache
+ask 0
+```
+
+Résultat attendu:
+La seule lettre traitée étant la lettre "e", le server 0 nous montre le nombre d'occurrences de cette lettre dans le mot "vache".
+
+### Test n°5
+Faire un wave avec un mot comprenant des lettres non traitées.
+Input du client:
+```bash
+probe banc 4
+```
+
+Résultat attendu:
+Aucune lettre n'est traitée, le server 4 nous répond qu'aucune lettre traitée n'a été trouvée.
+
+### Test n°6
 Faire un wave puis vérifier si la réponse est similaire sur 2 serveurs différents.
+
+Input du client:
+```bash
+wave tombe
+ask 0
+ask 4
+```
+
+Résultat attendu:
+On remarque que l'ordre des lettres n'est pas pareil mais le compte de chaque lettre est équivalent.
+
+### Test n°7
+Faire un probe puis vérifier si la réponse est similaire sur 2 serveurs différents.
+
+Input du client:
+```bash
+probe pomte 0
+ask 0
+ask 4
+```
+
+Résultat attendu:
+Le serveur P0 nous donne le bon compte de lettre mais le serveur P4 nous dit qu'aucun texte n'a été traité car ce dernier est un processus enfant dans cette itération.
+
 
 
 ## Implémentation

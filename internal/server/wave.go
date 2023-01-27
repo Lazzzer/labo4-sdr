@@ -86,7 +86,7 @@ func (s *Server) initWaveCount(text string) {
 	}
 
 	shared.Log(types.INFO, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
-	shared.Log(types.INFO, "Text "+text+" has been processed")
+	shared.Log(types.INFO, "Text \""+text+"\" has been processed")
 	textProcessedChan <- true
 }
 

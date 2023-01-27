@@ -75,24 +75,29 @@ func (c *Client) processInput(input string) (bool, string, []string, error) {
 	}
 
 	var command types.Command
+
 	var addresses []string
 	waitResponse := false
 
 	switch args[0] {
 	case string(types.WaveCount):
-		if length != 2 {
+
+		if length < 2 {
 			return false, "", nil, fmt.Errorf("invalid wave command")
 		}
+
+		command.Text = strings.Join(args[1:], " ")
+
 		command.Type = types.WaveCount
-		command.Text = args[1]
 		for _, address := range c.Servers {
 			addresses = append(addresses, address)
 		}
 	case string(types.ProbeCount):
-		if length != 3 {
+		if length < 3 {
 			return false, "", nil, fmt.Errorf("invalid probe command")
 		}
-		value, err := strconv.Atoi(args[2])
+
+		value, err := strconv.Atoi(args[1])
 		if err != nil {
 			return false, "", nil, fmt.Errorf("invalid server number")
 		}
@@ -100,8 +105,9 @@ func (c *Client) processInput(input string) (bool, string, []string, error) {
 			return false, "", nil, fmt.Errorf("invalid server number")
 		}
 
+		command.Text = strings.Join(args[2:], " ")
+
 		command.Type = types.ProbeCount
-		command.Text = args[1]
 		addresses = append(addresses, c.Servers[value])
 		waitResponse = true
 	case string(types.Ask):
@@ -175,8 +181,8 @@ func (c *Client) sendCommand(command string, address string, waitResponse bool) 
 // displayPrompt affiche les commandes disponibles pour l'utilisateur.
 func displayPrompt() {
 	fmt.Println("\nAvailable commands:")
-	fmt.Println(shared.YELLOW + " - wave <word>")
-	fmt.Println(" - probe <word> <server number>")
+	fmt.Println(shared.YELLOW + " - wave <text>")
+	fmt.Println(" - probe <server number> <text>")
 	fmt.Println(" - ask <server number>")
 	fmt.Println(" - quit" + shared.RESET)
 	fmt.Println(shared.BOLD + "\nEnter a command to send:" + shared.RESET)

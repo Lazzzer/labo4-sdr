@@ -144,7 +144,7 @@ func (s *Server) handleCommand(commandStr string) (string, error) {
 
 	textToLog := ""
 	if command.Type != types.Ask {
-		textToLog = " Text: " + command.Text
+		textToLog = " Text: \"" + command.Text + "\""
 	}
 	shared.Log(types.COMMAND, "Type: "+string(command.Type)+textToLog)
 
@@ -177,7 +177,7 @@ func (s *Server) handleAsk(text string) string {
 // countLetterOccurrences compte le nombre d'occurrences de la lettre du serveur dans le texte passé en paramètre.
 func (s *Server) countLetterOccurrences(text string) {
 	s.Counts[s.Letter] = strings.Count(strings.ToUpper(text), s.Letter)
-	shared.Log(types.INFO, "Letter "+s.Letter+" found "+strconv.Itoa(s.Counts[s.Letter])+" time(s) in "+text)
+	shared.Log(types.INFO, "Letter "+s.Letter+" found "+strconv.Itoa(s.Counts[s.Letter])+" time(s) in \""+text+"\"")
 }
 
 // displayOccurrences retourne une chaîne de caractères contenant le nombre d'occurrences de chaque lettre du texte
@@ -190,7 +190,7 @@ func (s *Server) displayOccurrences(counts map[string]int) string {
 		result += server.Letter + " "
 	}
 
-	result += "\nOccurrences of processable letters in " + s.Text + ":\n"
+	result += "\nOccurrences of processable letters in \"" + s.Text + "\" :\n"
 	for letter, count := range counts {
 		if count != 0 {
 			result += letter + " : " + strconv.Itoa(count) + "\n"

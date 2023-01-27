@@ -23,7 +23,7 @@ func (s *Server) initProbeEchoCountAsRoot(text string) string {
 	<-emitterChan
 	emitterChan <- true // ainsi, dans le handle, le serveur saura qu'il a déjà émis et qu'il ne doit pas initier l'algorithme de nouveau
 
-	shared.Log(types.PROBE, "Processing text "+text+" as root process")
+	shared.Log(types.PROBE, "Processing text \""+text+"\" as root process")
 
 	s.init(false)
 	s.Parent = s.Number
@@ -61,7 +61,7 @@ func (s *Server) initProbeEchoCountAsRoot(text string) string {
 	}
 
 	shared.Log(types.INFO, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
-	shared.Log(types.INFO, "Text "+text+" has been processed")
+	shared.Log(types.INFO, "Text \""+text+"\" has been processed")
 	textProcessedChan <- true
 	<-emitterChan
 	emitterChan <- false
@@ -79,7 +79,7 @@ func (s *Server) initProbeEchoCountAsLeaf(message types.ProbeEchoMessage) {
 
 	receivedMessage := <-probeEchoMessageChans[message.Number]
 	shared.Log(types.PROBE, "Received Probe from P"+strconv.Itoa(receivedMessage.Number))
-	shared.Log(types.PROBE, "Processing text "+*receivedMessage.Text+" as leaf process")
+	shared.Log(types.PROBE, "Processing text \""+*receivedMessage.Text+"\" as leaf process")
 
 	s.Text = *receivedMessage.Text
 	s.countLetterOccurrences(s.Text)
@@ -128,7 +128,7 @@ func (s *Server) initProbeEchoCountAsLeaf(message types.ProbeEchoMessage) {
 	shared.Log(types.ECHO, "Sent echo to P"+strconv.Itoa(s.Parent))
 
 	shared.Log(types.INFO, shared.CYAN+"Counts: "+fmt.Sprint(s.Counts)+shared.RESET)
-	shared.Log(types.INFO, "Processed text "+s.Text+" as leaf process, root process can now display the result")
+	shared.Log(types.INFO, "Processed text \""+s.Text+"\" as leaf process, root process can now display the result")
 	textProcessedChan <- false // Les serveurs feuilles ne peuvent pas répondre à des asks car leur map de comptage n'est pas complète
 	<-emitterChan
 	emitterChan <- false
