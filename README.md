@@ -56,9 +56,28 @@ quit
 
 # Les tests
 
+![graph](./docs/graph.png)
+
 ## Procédure de tests manuels
 
-### Test n° 1
+### Tests basiques
+
+
+### Test 1
+Faire un wave puis vérifier la réponse.
+
+### Test 2
+Faire un wave puis vérifier si la réponse est similaire sur 2 serveurs différents.
+
+### Test 3
+Faire deux wave de suite.
+
+### Test 4
+Faire un probe puis vérifier la réponse
+
+### Test 5
+
+### Test 6
 
 
 ## Implémentation
