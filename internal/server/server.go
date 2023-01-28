@@ -191,10 +191,15 @@ func (s *Server) displayOccurrences(counts map[string]int) string {
 	}
 
 	result += "\nOccurrences of processable letters in \"" + s.Text + "\" :\n"
+	empty := true
 	for letter, count := range counts {
 		if count != 0 {
-			result += letter + " : " + strconv.Itoa(count) + "\n"
+			empty = false
+			result += shared.GREEN + letter + " : " + strconv.Itoa(count) + "\n" + shared.RESET
 		}
+	}
+	if empty {
+		result += shared.RED + "\nNo occurrence found\n\n" + shared.RESET
 	}
 	result += "---------------------"
 	return result
