@@ -79,10 +79,10 @@ On commence par faire la commande `ask` sur le serveur P0
 ask 0
 ```
 
-// TODO : Screenshot du test
-
 **Résultat attendu:**  
 Le server P0 nous répond qu'il n'y a pas encore eu de texte traité.
+
+![test 1](./docs/test1.png)
 
 ### Test n°2
 
@@ -95,58 +95,29 @@ wave pomme
 ask 0
 ```
 
-// TODO : Screenshot du test
-
 **Résultat attendu:**  
 Le server P0 nous montre le nombre d'occurrences de chaque lettre dans le mot "pomme".
+
+![test 2](./docs/test2.png)
 
 ### Test n°3
 
-On fait la commande `probe` avec le mot "pomme" sur le serveur P0 puis on fait la commande `ask` sur le serveur P1.
+On fait la commande `probe` avec le mot "pomme" sur le serveur P0.
 
 **Input du client:**
 
 ```bash
-probe 0 pomme
+probe 0 la pomme tombe de l'arbre
 ```
 
-// TODO : Screenshot du test
-
 **Résultat attendu:**  
-Le server P0 nous montre le nombre d'occurrences de chaque lettre dans le mot "pomme".
+Le server P0 nous montre le nombre d'occurrences de chaque lettre dans le texte "probe 0 la pomme tombe de l'arbre".
+
+![test 3](./docs/test3.png)
 
 ### Test n°4
 
-Faire un wave avec un mot comprenant des lettres non traitées.
-**Input du client:**
-
-```bash
-wave vache
-ask 0
-```
-
-// TODO : Screenshot du test
-
-**Résultat attendu:**  
-La seule lettre traitée étant la lettre "e", le server P0 nous montre le nombre d'occurrences de cette lettre dans le mot "vache".
-
-### Test n°5
-
-Faire un wave avec un mot comprenant des lettres non traitées.
-**Input du client:**
-
-```bash
-probe 4 banc
-```
-
-// TODO : Screenshot du test
-
-**Résultat attendu:**  
-Aucune lettre n'est traitée, le server P4 nous répond qu'aucune lettre traitée n'a été trouvée.
-
-### Test n°6
-
-Faire un wave puis vérifier si la réponse est similaire sur 2 serveurs différents.
+On fait une commande `wave` puis on vérifie si la réponse est similaire sur 2 serveurs différents.
 
 **Input du client:**
 
@@ -156,27 +127,44 @@ ask 0
 ask 4
 ```
 
-// TODO : Screenshot du test
-
 **Résultat attendu:**  
 On remarque que l'ordre des lettres n'est pas pareil mais le compte de chaque lettre est équivalent.
 
-### Test n°7
+![test 4](./docs/test4.png)
 
-Faire un probe puis vérifier si la réponse est similaire sur 2 serveurs différents.
+### Test n°5
+
+On fait une commande `probe` puis on vérifie la réponse d'un serveur "feuille" et d'un serveur "racine".
 
 **Input du client:**
 
 ```bash
-probe pomte 0
-ask 0
+probe 0 pomme
 ask 4
+ask 0
 ```
 
-// TODO : Screenshot du test
+**Résultat attendu:**  
+Le serveur P0 nous donne le bon compte de lettres mais le serveur P4 nous dit qu'aucun texte n'a été traité car ce dernier est un processus feuille dans cette itération.
+
+![test 5](./docs/test5.png)
+
+### Test n°6
+
+On fait une commande `wave` puis une commande `probe` à la suite pour vérifier que les serveurs peuvent traiter plusieurs commandes à la suite avec un état correct.
+
+**Input du client:**
+
+```bash
+wave pomme
+ask 0
+probe 4 mon pote est une pomme
+```
 
 **Résultat attendu:**  
-Le serveur P0 nous donne le bon compte de lettre mais le serveur P4 nous dit qu'aucun texte n'a été traité car ce dernier est un processus enfant dans cette itération.
+Le résultat des deux commandes est correct.
+
+![test 6](./docs/test6.png)
 
 ## Implémentation
 
