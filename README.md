@@ -102,7 +102,7 @@ Le server P0 nous montre le nombre d'occurrences de chaque lettre dans le mot "p
 
 ### Test n°3
 
-On fait la commande `probe` avec le mot "pomme" sur le serveur P0.
+On fait la commande `probe` avec le texte "la pomme tombe de l'arbre" sur le serveur P0.
 
 **Input du client:**
 
